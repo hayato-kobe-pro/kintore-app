@@ -1,0 +1,164 @@
+/* トレーニングログ月間カレンダー（白背景・カラー種目チップ） */
+
+.tl-main {
+  max-width: 560px;
+}
+
+.tl-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.tl-toolbar__title {
+  margin: 0;
+  flex: 1;
+  text-align: center;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.tl-toolbar__btn {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  font-size: 1.35rem;
+  line-height: 1;
+  color: var(--text);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.tl-toolbar__btn:active {
+  background: var(--surface-pressed);
+}
+
+.tl-cal-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.tl-cal-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0;
+  padding: 8px 0 6px;
+  border-bottom: 1px solid var(--border);
+  background: #fafafa;
+}
+
+.tl-cal-weekdays span {
+  text-align: center;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+}
+
+.tl-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0;
+  width: 100%;
+}
+
+.tl-cell {
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 92px;
+  padding: 4px 3px 6px;
+  border-right: 1px solid #eee;
+  border-bottom: 1px solid #eee;
+  text-decoration: none;
+  color: inherit;
+  -webkit-tap-highlight-color: transparent;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 3px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.tl-cell:nth-child(7n) {
+  border-right: none;
+}
+
+.tl-cell:active {
+  background: #f5f5f5;
+}
+
+.tl-cell--muted {
+  background: #fafafa;
+}
+
+.tl-cell--muted .tl-cell__num {
+  color: #bdbdbd;
+}
+
+.tl-cell__num {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin: 0 auto;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text);
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.tl-cell--today .tl-cell__num {
+  background: var(--accent);
+  color: #fff;
+}
+
+.tl-cell__chips {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  overflow: hidden;
+}
+
+.tl-chip {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-size: 0.5625rem;
+  font-weight: 600;
+  line-height: 1.25;
+  overflow: hidden;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+
+.tl-hint {
+  margin: 12px 0 0;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}

@@ -1,0 +1,35 @@
+.vision-card .fields {
+  gap: 18px;
+}
+
+.vision-textarea {
+  width: 100%;
+  min-height: 100px;
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  resize: vertical;
+  font: inherit;
+}
+
+.vision-textarea:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 0;
+  border-color: transparent;
+}
+
+.vision-char-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+
+.vision-char-count {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
