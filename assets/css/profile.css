@@ -14,6 +14,20 @@
   line-height: 1.4;
 }
 
+.profile-alert {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+.profile-alert--error {
+  background: #fce8e6;
+  color: #c5221f;
+  border: 1px solid #f0b4ae;
+}
+
 .profile-form {
   display: flex;
   flex-direction: column;

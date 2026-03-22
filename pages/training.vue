@@ -1,5 +1,9 @@
 <script setup lang="ts">
 import { KintoreExerciseCatalog } from "~/utils/exerciseCatalog";
+import {
+  matchesExerciseSearch,
+  resolveExerciseNameFromInput,
+} from "~/utils/exerciseSearch";
 
 const { getDay: getTrainingDay, saveDay: saveTrainingDay } =
   useTrainingFirestore();
@@ -8,6 +12,7 @@ const kintoreSessions = useKintoreSessions();
 const SOURCE_NEW = "__new__";
 
 const EXERCISE_OPTIONS = KintoreExerciseCatalog.names();
+const validExerciseNames = new Set(EXERCISE_OPTIONS);
 
 type SetRow = { exercise: string; weight: number | ""; reps: number | "" };
 
@@ -79,8 +84,7 @@ if (typeof q === "string" && /^\d{4}-\d{2}-\d{2}$/.test(q)) {
 const calendarViewMonth = ref(new Date(currentDate.value));
 const calendarDialog = ref<HTMLDialogElement | null>(null);
 const calendarExpanded = ref(false);
-const saveHint = ref(false);
-let saveHintTimer: ReturnType<typeof setTimeout> | null = null;
+const persistError = ref<string | null>(null);
 
 const sessionSource = ref(SOURCE_NEW);
 const lastSessionSourceValue = ref(SOURCE_NEW);
@@ -95,20 +99,121 @@ function bumpSessionOptions() {
   sessionsTick.value += 1;
 }
 
-function showSaved() {
-  saveHint.value = true;
-  if (saveHintTimer) clearTimeout(saveHintTimer);
-  saveHintTimer = setTimeout(() => {
-    saveHint.value = false;
-  }, 1200);
+const sets = ref<SetRow[]>([]);
+
+const exerciseComboOpenIndex = ref<number | null>(null);
+const exerciseComboQuery = ref("");
+const exerciseComboBaseline = ref("");
+let exerciseComboCloseTimer: ReturnType<typeof setTimeout> | null = null;
+
+const filteredExerciseNamesForTraining = computed(() => {
+  const q = exerciseComboQuery.value;
+  if (!q.trim()) return EXERCISE_OPTIONS;
+  return EXERCISE_OPTIONS.filter((n) => matchesExerciseSearch(n, q));
+});
+
+function clearExerciseComboTimer() {
+  if (exerciseComboCloseTimer) {
+    clearTimeout(exerciseComboCloseTimer);
+    exerciseComboCloseTimer = null;
+  }
 }
 
-const sets = ref<SetRow[]>([]);
+function closeTrainingExerciseCombo() {
+  const i = exerciseComboOpenIndex.value;
+  if (i == null) return;
+  const q = exerciseComboQuery.value.trim();
+  let next = exerciseComboBaseline.value;
+  if (q === "") next = "";
+  else if (validExerciseNames.has(q)) next = q;
+  else {
+    const resolved = resolveExerciseNameFromInput(
+      q,
+      validExerciseNames,
+      EXERCISE_OPTIONS,
+    );
+    next = resolved ?? exerciseComboBaseline.value;
+  }
+  const prev = sets.value[i]?.exercise ?? "";
+  if (prev !== next) {
+    sets.value[i].exercise = next;
+    sets.value = [...sets.value];
+    void persistSets();
+  }
+  exerciseComboOpenIndex.value = null;
+}
+
+function onTrainingExerciseComboFocus(i: number) {
+  clearExerciseComboTimer();
+  if (
+    exerciseComboOpenIndex.value !== null &&
+    exerciseComboOpenIndex.value !== i
+  ) {
+    closeTrainingExerciseCombo();
+  }
+  exerciseComboOpenIndex.value = i;
+  exerciseComboBaseline.value = sets.value[i]?.exercise ?? "";
+  exerciseComboQuery.value = sets.value[i]?.exercise ?? "";
+}
+
+function onTrainingExerciseComboBlur() {
+  exerciseComboCloseTimer = setTimeout(() => {
+    closeTrainingExerciseCombo();
+    exerciseComboCloseTimer = null;
+  }, 200);
+}
+
+function onTrainingExerciseComboInput(e: Event) {
+  exerciseComboQuery.value = (e.target as HTMLInputElement).value;
+}
+
+function pickTrainingExercise(i: number, name: string) {
+  clearExerciseComboTimer();
+  sets.value[i].exercise = name;
+  sets.value = [...sets.value];
+  exerciseComboOpenIndex.value = null;
+  void persistSets();
+}
+
+function onTrainingExerciseComboKeydown(i: number, e: KeyboardEvent) {
+  if (e.key === "Escape") {
+    e.preventDefault();
+    clearExerciseComboTimer();
+    exerciseComboQuery.value = exerciseComboBaseline.value;
+    exerciseComboOpenIndex.value = null;
+    (e.target as HTMLInputElement).blur();
+    return;
+  }
+  if (e.key === "Enter") {
+    const filtered = filteredExerciseNamesForTraining.value;
+    const t = exerciseComboQuery.value.trim();
+    e.preventDefault();
+    if (filtered.length === 1) {
+      pickTrainingExercise(i, filtered[0]!);
+    } else if (validExerciseNames.has(t)) {
+      pickTrainingExercise(i, t);
+    } else {
+      const resolved = resolveExerciseNameFromInput(
+        t,
+        validExerciseNames,
+        EXERCISE_OPTIONS,
+      );
+      if (resolved) pickTrainingExercise(i, resolved);
+    }
+  }
+}
 
 async function persistSets() {
   const key = ymd(currentDate.value);
-  await saveTrainingDay(key, sets.value.map((s) => ({ ...s })));
-  showSaved();
+  const r = await saveTrainingDay(
+    key,
+    sets.value.map((s) => ({ ...s })),
+  );
+  if (!r.ok) {
+    persistError.value = r.message;
+    return;
+  }
+  persistError.value = null;
 }
 
 async function loadSetsForCurrentDate() {
@@ -181,10 +286,6 @@ function removeSet(i: number) {
   void persistSets();
 }
 
-function onSetFieldChange() {
-  void persistSets();
-}
-
 function formatWeightForInput(w: number | "") {
   if (w === "" || w == null) return "";
   return String(w);
@@ -223,6 +324,11 @@ function exerciseGuideUrl(ex: string) {
 }
 
 const dateDisplay = computed(() => formatHeaderDate(currentDate.value));
+
+const trainingLogTo = computed(() => ({
+  path: "/training-log",
+  query: { month: ymd(currentDate.value).slice(0, 7) },
+}));
 
 const calendarTitle = computed(() =>
   new Intl.DateTimeFormat("ja-JP", {
@@ -316,6 +422,9 @@ async function onVisibility() {
 }
 
 watch(currentDate, () => {
+  persistError.value = null;
+  clearExerciseComboTimer();
+  exerciseComboOpenIndex.value = null;
   void loadSetsForCurrentDate();
   resetTrainingSourceSelect();
 });
@@ -336,42 +445,39 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  clearExerciseComboTimer();
   document.removeEventListener("visibilitychange", onVisibility);
 });
 </script>
 
 <template>
   <main class="main">
-    <h1 class="page-title">トレーニングレコード</h1>
-
-    <section class="card training-source-card" aria-labelledby="training-source-heading">
-      <h2 id="training-source-heading" class="section-title">セッションから入力</h2>
-      <p class="training-source-note">
-        登録済みのセッションを選ぶと、その日のセットがセッションの種目で置き換わります（未保存の入力は消えます）。
-      </p>
-      <div class="field">
-        <span class="field-label">
-          <span class="field-label-dot" style="background: var(--accent)" />
-          セッション
-        </span>
-        <select
-          id="training-source-select"
-          v-model="sessionSource"
-          class="training-select"
-          aria-label="セッションから入力"
-          @change="onSessionSourceChange"
+    <div class="training-title-row">
+      <h1 class="page-title">トレーニングレコード</h1>
+      <NuxtLink
+        :to="trainingLogTo"
+        class="training-cal-btn"
+        aria-label="トレーニングログのカレンダーを開く"
+      >
+        <svg
+          class="training-cal-btn__icon"
+          xmlns="http://www.w3.org/2000/svg"
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
         >
-          <option
-            v-for="row in sessionOptions"
-            :key="row.id"
-            :value="row.id"
-          >
-            {{ row.title }}
-          </option>
-          <option :value="SOURCE_NEW">種目を自分で選ぶ</option>
-        </select>
-      </div>
-    </section>
+          <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+          <path d="M16 2v4M8 2v4M3 10h18" />
+        </svg>
+        カレンダー
+      </NuxtLink>
+    </div>
 
     <div class="app-header">
       <button type="button" class="nav-btn" aria-label="前の日" @click="goDay(-1)">
@@ -387,7 +493,6 @@ onUnmounted(() => {
           @click="openCalendar"
         >
           <span class="date-label" aria-live="polite">{{ dateDisplay }}</span>
-          <span class="date-picker-hint">日付を選択</span>
         </button>
       </div>
       <button type="button" class="nav-btn" aria-label="次の日" @click="goDay(1)">
@@ -395,9 +500,31 @@ onUnmounted(() => {
       </button>
     </div>
 
+    <section class="card training-source-card" aria-labelledby="training-source-heading">
+      <h2 id="training-source-heading" class="section-title">セッションを選択</h2>
+      <div class="field">
+        <select
+          id="training-source-select"
+          v-model="sessionSource"
+          class="training-select"
+          aria-labelledby="training-source-heading"
+          @change="onSessionSourceChange"
+        >
+          <option
+            v-for="row in sessionOptions"
+            :key="row.id"
+            :value="row.id"
+          >
+            {{ row.title }}
+          </option>
+          <option :value="SOURCE_NEW">種目を自分で選ぶ</option>
+        </select>
+      </div>
+    </section>
+
     <section class="card" aria-labelledby="training-sets-heading">
       <h2 id="training-sets-heading" class="section-title">この日のセット</h2>
-      <div id="training-sets">
+      <div id="training-sets" class="training-sets">
         <div
           v-for="(s, i) in sets"
           :key="i"
@@ -421,17 +548,63 @@ onUnmounted(() => {
               <span class="field-label-dot" style="background: var(--accent)" />
               トレーニング種目
             </span>
-            <select
-              v-model="s.exercise"
-              class="training-select"
-              aria-label="トレーニング種目"
-              @change="onSetFieldChange"
+            <div
+              class="session-exercise-combo"
+              :class="{
+                'session-exercise-combo--open': exerciseComboOpenIndex === i,
+              }"
             >
-              <option value="">ーー</option>
-              <option v-for="name in EXERCISE_OPTIONS" :key="name" :value="name">
-                {{ name }}
-              </option>
-            </select>
+              <input
+                :id="`training-exercise-combo-${i}`"
+                type="text"
+                enterkeyhint="search"
+                autocomplete="off"
+                autocorrect="off"
+                spellcheck="false"
+                class="session-exercise-combo-input"
+                role="combobox"
+                aria-autocomplete="list"
+                :aria-expanded="
+                  exerciseComboOpenIndex === i ? 'true' : 'false'
+                "
+                :aria-controls="`training-exercise-listbox-${i}`"
+                :aria-label="`セット${i + 1}の種目を検索`"
+                placeholder="種目を検索"
+                :value="
+                  exerciseComboOpenIndex === i ? exerciseComboQuery : s.exercise
+                "
+                @focus="onTrainingExerciseComboFocus(i)"
+                @blur="onTrainingExerciseComboBlur"
+                @input="onTrainingExerciseComboInput($event)"
+                @keydown="onTrainingExerciseComboKeydown(i, $event)"
+              />
+              <ul
+                v-show="exerciseComboOpenIndex === i"
+                :id="`training-exercise-listbox-${i}`"
+                class="session-exercise-combo-list"
+                role="listbox"
+                :aria-label="`セット${i + 1}の候補`"
+                @mousedown.prevent
+              >
+                <li
+                  v-for="name in filteredExerciseNamesForTraining"
+                  :key="name"
+                  class="session-exercise-combo-option"
+                  role="option"
+                  :aria-selected="s.exercise === name ? 'true' : 'false'"
+                  @mousedown="pickTrainingExercise(i, name)"
+                >
+                  {{ name }}
+                </li>
+                <li
+                  v-if="filteredExerciseNamesForTraining.length === 0"
+                  class="session-exercise-combo-empty"
+                  role="presentation"
+                >
+                  該当する種目がありません
+                </li>
+              </ul>
+            </div>
             <div class="training-set__guide" aria-live="polite">
               <span
                 v-if="!normalizeExercise(s.exercise)"
@@ -491,7 +664,9 @@ onUnmounted(() => {
       >
         ＋ セットを追加
       </button>
-      <p class="save-hint" :hidden="!saveHint">保存しました</p>
+      <p v-if="persistError" class="firestore-alert" role="alert">
+        {{ persistError }}
+      </p>
     </section>
   </main>
 

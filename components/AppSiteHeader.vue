@@ -15,14 +15,14 @@ const nav = [
     match: (p: string) => p === "/training",
   },
   {
-    to: "/training-sessions",
-    label: "トレーニングセッション",
-    match: (p: string) => p.startsWith("/training-sessions"),
-  },
-  {
     to: "/training-log",
     label: "トレーニングログ",
     match: (p: string) => p === "/training-log",
+  },
+  {
+    to: "/training-sessions",
+    label: "トレーニングセッション",
+    match: (p: string) => p.startsWith("/training-sessions"),
   },
   { to: "/vision", label: "ビジョン", match: (p: string) => p === "/vision" },
   { to: "/profile", label: "プロフィール", match: (p: string) => p === "/profile" },

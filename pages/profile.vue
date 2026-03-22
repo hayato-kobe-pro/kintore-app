@@ -62,6 +62,25 @@ function profileFromServer(data: Record<string, unknown>): Profile {
   return p;
 }
 
+/** Firestore 用のプレーンオブジェクト（`users/{uid}/settings/profile`） */
+function profileToFirestore(p: Profile): Record<string, unknown> {
+  const n = (v: number | "") => (v === "" ? null : v);
+  return {
+    height: n(p.height),
+    weight: n(p.weight),
+    bodyFat: n(p.bodyFat),
+    goalCalories: n(p.goalCalories),
+    goalProtein: n(p.goalProtein),
+    goalFat: n(p.goalFat),
+    goalCarbs: n(p.goalCarbs),
+    goalFiber: n(p.goalFiber),
+    goalWeight: n(p.goalWeight),
+    goalSleep: n(p.goalSleep),
+    trainingExperience: p.trainingExperience || null,
+    bulkOrCut: p.bulkOrCut || null,
+  };
+}
+
 function activityFactor(exp: string) {
   switch (exp) {
     case "半年未満":
@@ -131,9 +150,12 @@ function computeGoalsFromProfile(p: Profile) {
 
 useHead({ title: "プロフィール" });
 
+const { user } = useFirebaseAuth();
 const profileFirestore = useProfileFirestore();
 const profile = reactive<Profile>({ ...DEFAULT_PROFILE });
 const saveHint = ref(false);
+const saveError = ref<string | null>(null);
+const loadError = ref<string | null>(null);
 let saveHintTimer: ReturnType<typeof setTimeout> | null = null;
 
 function showSaved() {
@@ -173,8 +195,14 @@ async function applyComputedGoals(showHint: boolean) {
     goalCarbs: g.goalCarbs,
     goalFiber: g.goalFiber,
   });
-  await profileFirestore.merge({ ...profile } as Record<string, unknown>);
   renderGoalOutputs(g);
+  const r = await profileFirestore.merge(profileToFirestore(profile));
+  if (!r.ok) {
+    saveError.value = r.message;
+    if (showHint) saveHint.value = false;
+    return;
+  }
+  saveError.value = null;
   if (showHint) showSaved();
 }
 
@@ -210,16 +238,44 @@ function selectVal(e: Event) {
   return (e.target as HTMLSelectElement).value;
 }
 
-onMounted(async () => {
-  const data = await profileFirestore.load();
-  Object.assign(profile, profileFromServer(data));
-  await applyComputedGoals(false);
+async function hydrateProfileFromCloud() {
+  loadError.value = null;
+  try {
+    const data = await profileFirestore.load();
+    Object.assign(profile, profileFromServer(data));
+    await applyComputedGoals(false);
+  } catch (e) {
+    loadError.value =
+      e instanceof Error ? e.message : "プロフィールの読み込みに失敗しました";
+  }
+}
+
+onMounted(() => {
+  void hydrateProfileFromCloud();
 });
+
+watch(
+  () => user.value?.uid,
+  (uid, prevUid) => {
+    if (!uid) return;
+    if (prevUid === undefined) return;
+    if (uid === prevUid) return;
+    void hydrateProfileFromCloud();
+  },
+);
 </script>
 
 <template>
   <main class="main">
     <h1 class="page-title">プロフィール</h1>
+
+    <p
+      v-if="loadError"
+      class="profile-alert profile-alert--error"
+      role="alert"
+    >
+      {{ loadError }}
+    </p>
 
     <form class="profile-form" autocomplete="off" @submit.prevent>
       <section class="card profile-card" aria-labelledby="profile-basic-heading">
@@ -420,6 +476,14 @@ onMounted(async () => {
       </section>
 
       <p id="save-hint" class="save-hint" :hidden="!saveHint">保存しました</p>
+      <p
+        v-if="saveError"
+        id="profile-save-error"
+        class="profile-alert profile-alert--error"
+        role="alert"
+      >
+        {{ saveError }}
+      </p>
     </form>
   </main>
 </template>

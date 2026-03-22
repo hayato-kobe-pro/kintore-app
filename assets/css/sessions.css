@@ -1,3 +1,5 @@
+@import "./exercise-combo.css";
+
 .sessions-back-wrap {
   margin: 0 0 12px;
 }
@@ -342,31 +344,6 @@
 
 .session-exercise-rm:active {
   background: var(--surface-pressed);
-}
-
-.session-exercise-select {
-  width: 100%;
-  padding: 11px 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface);
-  color: var(--text);
-  font-size: 1rem;
-  font: inherit;
-  cursor: pointer;
-  box-sizing: border-box;
-  -webkit-appearance: none;
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpolyline fill='none' stroke='%23737373' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' points='3 4.5 6 7.5 9 4.5'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 12px center;
-  padding-right: 36px;
-}
-
-.session-exercise-select:focus {
-  outline: 2px solid var(--accent);
-  outline-offset: 0;
-  border-color: transparent;
 }
 
 .session-exercise-guide {

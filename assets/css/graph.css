@@ -45,6 +45,10 @@ body {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 .period-seg {
@@ -90,6 +94,8 @@ body {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  min-width: 0;
+  max-width: 100%;
 }
 
 .custom-range[hidden] {
@@ -100,6 +106,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
 }
 
 .range-row label {
@@ -108,14 +115,81 @@ body {
   color: var(--text-muted);
 }
 
-.range-row input[type="date"] {
+/* iOS / WebKit の date は最小幅が大きくカードからはみ出すためラッパーで幅を制限 */
+.range-input-shell {
+  display: flex;
+  align-items: center;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.range-row input[type="date"],
+.range-input-shell input[type="date"] {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 44px;
   padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: 8px;
   font-size: 1rem;
+  line-height: 1.35;
   background: var(--surface);
   color: var(--text);
+  box-sizing: border-box;
+}
+
+/**
+ * iOS Safari の date はネイティブ UI 内で文字が下寄りになりやすい。
+ * タッチ端末だけ appearance を外し、高さと line-height を揃えて中央に近づける。
+ * （PCのマウス操作は (pointer: fine) のためこのブロック外のスタイルのまま）
+ */
+@media (hover: none) and (pointer: coarse) {
+  .range-input-shell input[type="date"] {
+    -webkit-appearance: none;
+    appearance: none;
+    position: relative;
+    height: 48px;
+    min-height: 48px;
+    padding: 0 40px 0 12px;
+    font-size: 16px; /* フォーカス時の自動ズーム抑止 */
+    /* border 上下 1px を除いた内側の高さに合わせて 1 行を中央寄せ */
+    line-height: calc(48px - 2px);
+    overflow: hidden;
+  }
+
+  .range-input-shell input[type="date"]::-webkit-datetime-edit {
+    display: inline-block;
+    width: 100%;
+    padding: 0;
+    margin: 0;
+    line-height: inherit;
+    vertical-align: middle;
+  }
+
+  .range-input-shell input[type="date"]::-webkit-datetime-edit-fields-wrapper {
+    padding: 0;
+    margin: 0;
+    line-height: inherit;
+    vertical-align: middle;
+  }
+
+  .range-input-shell input[type="date"]::-webkit-date-and-time-value {
+    margin: 0;
+    padding: 0;
+    line-height: inherit;
+  }
+
+  .range-input-shell input[type="date"]::-webkit-calendar-picker-indicator {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    margin: 0;
+    transform: translateY(-50%);
+    cursor: pointer;
+  }
 }
 
 .btn-apply {

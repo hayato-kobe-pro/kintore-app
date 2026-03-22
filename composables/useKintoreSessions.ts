@@ -13,6 +13,18 @@ import {
   type SessionRow,
   type SessionsState,
 } from "~/utils/sessionsCore";
+import {
+  firestoreBlocked,
+  firestoreOk,
+  MSG_NO_FIRESTORE,
+  MSG_NO_USER,
+  toUserFirestoreMessage,
+  type FirestorePersistResult,
+} from "~/utils/firestorePersist";
+
+export type KintoreSessionWriteResult =
+  | { ok: true }
+  | { ok: false; message: string };
 
 /**
  * トレーニングセッションを Firestore `users/{uid}/settings/sessions` に保存。
@@ -27,18 +39,29 @@ export function useKintoreSessions() {
   );
   const ready = useState("kintore-sessions-ready", () => false);
 
-  async function persist() {
+  function cloneState(): SessionsState {
+    return JSON.parse(JSON.stringify(state.value)) as SessionsState;
+  }
+
+  async function persist(): Promise<FirestorePersistResult> {
+    await waitUntilReady();
     const uid = user.value?.uid;
     const db = nuxtApp.$firestoreDb;
-    if (!uid || !db) return;
-    await setDoc(
-      doc(db, "users", uid, "settings", "sessions"),
-      {
-        byId: state.value.byId,
-        customOrder: state.value.customOrder,
-      },
-      { merge: true },
-    );
+    if (!db) return firestoreBlocked(MSG_NO_FIRESTORE);
+    if (!uid) return firestoreBlocked(MSG_NO_USER);
+    try {
+      await setDoc(
+        doc(db, "users", uid, "settings", "sessions"),
+        {
+          byId: state.value.byId,
+          customOrder: state.value.customOrder,
+        },
+        { merge: true },
+      );
+      return firestoreOk();
+    } catch (e) {
+      return { ok: false, message: toUserFirestoreMessage(e) };
+    }
   }
 
   async function load() {
@@ -77,15 +100,27 @@ export function useKintoreSessions() {
   async function updateSession(
     id: string,
     patch: { title?: string; notes?: string; exercises?: string[] },
-  ): Promise<boolean> {
-    const ok = updateSessionInState(state.value, id, patch);
-    if (ok) await persist();
-    return ok;
+  ): Promise<KintoreSessionWriteResult> {
+    const snapshot = cloneState();
+    if (!updateSessionInState(state.value, id, patch)) {
+      return { ok: false, message: "このセッションは編集できません。" };
+    }
+    const r = await persist();
+    if (!r.ok) {
+      state.value = snapshot;
+      return { ok: false, message: r.message };
+    }
+    return { ok: true };
   }
 
   async function addCustomSession(title: string): Promise<string> {
+    const snapshot = cloneState();
     const id = addCustomSessionInState(state.value, title);
-    await persist();
+    const r = await persist();
+    if (!r.ok) {
+      state.value = snapshot;
+      throw new Error(r.message);
+    }
     return id;
   }
 

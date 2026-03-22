@@ -4,84 +4,91 @@ import {
   registerables,
   type Chart as ChartType,
 } from "chart.js";
+import type { DisplayGoalKey } from "~/utils/displayGoalsFromProfile";
 import "~/assets/css/graph.css";
 
 Chart.register(...registerables);
 
 const { fetchRange } = useDailyFirestore();
+const { goals: chartGoals, refresh: refreshChartGoals } =
+  useKintoreDisplayGoals();
+const preferencesFirestore = usePreferencesFirestore();
 
-const CHART_SPECS = [
+const CHART_BASE = [
   {
     id: "weight-chart",
     emptyId: "empty-weight",
-    field: "weight",
+    field: "weight" as const,
     title: "体重",
     legendLabel: "体重 (kg)",
     unit: "kg",
-    goal: 65,
     color: "#2563eb",
   },
   {
     id: "chart-calories",
     emptyId: "empty-calories",
-    field: "calories",
+    field: "calories" as const,
     title: "カロリー",
     legendLabel: "カロリー (kcal)",
     unit: "kcal",
-    goal: 1844,
     color: "#0d9488",
   },
   {
     id: "chart-protein",
     emptyId: "empty-protein",
-    field: "protein",
+    field: "protein" as const,
     title: "タンパク質",
     legendLabel: "タンパク質 (g)",
     unit: "g",
-    goal: 152,
     color: "#db2777",
   },
   {
     id: "chart-fat",
     emptyId: "empty-fat",
-    field: "fat",
+    field: "fat" as const,
     title: "脂質",
     legendLabel: "脂質 (g)",
     unit: "g",
-    goal: 31,
     color: "#ea580c",
   },
   {
     id: "chart-carbs",
     emptyId: "empty-carbs",
-    field: "carbs",
+    field: "carbs" as const,
     title: "炭水化物",
     legendLabel: "炭水化物 (g)",
     unit: "g",
-    goal: 240,
     color: "#4f46e5",
   },
   {
     id: "chart-fiber",
     emptyId: "empty-fiber",
-    field: "fiber",
+    field: "fiber" as const,
     title: "食物繊維",
     legendLabel: "食物繊維 (g)",
     unit: "g",
-    goal: 20,
     color: "#16a34a",
   },
   {
     id: "chart-sleep",
     emptyId: "empty-sleep",
-    field: "sleep",
+    field: "sleep" as const,
     title: "睡眠時間",
     legendLabel: "睡眠時間 (h)",
     unit: "h",
-    goal: 7,
     color: "#7c3aed",
   },
 ] as const;
+
+type ChartBaseSpec = (typeof CHART_BASE)[number];
+type ChartResolvedSpec = ChartBaseSpec & { goal: number };
+
+const chartSpecs = computed((): ChartResolvedSpec[] =>
+  CHART_BASE.map((b) => ({
+    ...b,
+    goal: chartGoals.value[b.field as DisplayGoalKey],
+  })),
+);
 
 function ymd(d: Date) {
   const y = d.getFullYear();
@@ -199,7 +206,7 @@ function initCustomDefaults() {
 }
 
 function renderChartForSpec(
-  spec: (typeof CHART_SPECS)[number],
+  spec: ChartResolvedSpec,
   start: Date,
   end: Date,
 ) {
@@ -306,7 +313,7 @@ function renderChartForSpec(
 }
 
 function renderAllCharts(start: Date, end: Date) {
-  CHART_SPECS.forEach((spec) => {
+  chartSpecs.value.forEach((spec) => {
     renderChartForSpec(spec, start, end);
   });
 }
@@ -343,18 +350,67 @@ function applyCustomRange() {
   void refresh();
 }
 
-onMounted(() => {
-  initCustomDefaults();
+const prefsHydrated = ref(false);
+let prefSaveTimer: ReturnType<typeof setTimeout> | null = null;
+
+function scheduleSavePreferences() {
+  if (!prefsHydrated.value) return;
+  if (prefSaveTimer) clearTimeout(prefSaveTimer);
+  prefSaveTimer = setTimeout(() => {
+    void preferencesFirestore.merge({
+      graphMode: mode.value,
+      graphRangeStart: rangeStart.value,
+      graphRangeEnd: rangeEnd.value,
+    });
+  }, 500);
+}
+
+function onVisibilityRefreshGoals() {
+  if (document.visibilityState === "visible") void refreshChartGoals();
+}
+
+onMounted(async () => {
+  const p = await preferencesFirestore.load();
+  if (
+    p.graphMode === "week" ||
+    p.graphMode === "month" ||
+    p.graphMode === "custom"
+  ) {
+    mode.value = p.graphMode;
+  }
+  if (p.graphRangeStart && p.graphRangeEnd) {
+    rangeStart.value = p.graphRangeStart;
+    rangeEnd.value = p.graphRangeEnd;
+  } else {
+    initCustomDefaults();
+  }
+  await refreshChartGoals();
+  prefsHydrated.value = true;
+  document.addEventListener("visibilitychange", onVisibilityRefreshGoals);
   void refresh();
 });
 
 onBeforeUnmount(() => {
-  CHART_SPECS.forEach((s) => destroyChart(s.id));
+  document.removeEventListener("visibilitychange", onVisibilityRefreshGoals);
+  if (prefSaveTimer) clearTimeout(prefSaveTimer);
+  CHART_BASE.forEach((s) => destroyChart(s.id));
 });
 
 watch(mode, () => {
   void nextTick(() => refresh());
 });
+
+watch([mode, rangeStart, rangeEnd], () => {
+  scheduleSavePreferences();
+});
+
+watch(
+  () => chartGoals.value,
+  () => {
+    void nextTick(() => void refresh());
+  },
+  { deep: true },
+);
 </script>
 
 <template>
@@ -393,11 +449,15 @@ watch(mode, () => {
     <div v-show="mode === 'custom'" class="custom-range" id="custom-range">
       <div class="range-row">
         <label for="range-start">開始日</label>
-        <input id="range-start" v-model="rangeStart" type="date" />
+        <div class="range-input-shell">
+          <input id="range-start" v-model="rangeStart" type="date" />
+        </div>
       </div>
       <div class="range-row">
         <label for="range-end">終了日</label>
-        <input id="range-end" v-model="rangeEnd" type="date" />
+        <div class="range-input-shell">
+          <input id="range-end" v-model="rangeEnd" type="date" />
+        </div>
       </div>
       <button
         type="button"
@@ -410,7 +470,7 @@ watch(mode, () => {
     </div>
 
     <section
-      v-for="spec in CHART_SPECS"
+      v-for="spec in chartSpecs"
       :key="spec.id"
       class="chart-card"
       :aria-labelledby="'chart-h-' + spec.field"

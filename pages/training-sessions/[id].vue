@@ -1,5 +1,9 @@
 <script setup lang="ts">
 import { KintoreExerciseCatalog } from "~/utils/exerciseCatalog";
+import {
+  matchesExerciseSearch,
+  resolveExerciseNameFromInput,
+} from "~/utils/exerciseSearch";
 
 const catalog = KintoreExerciseCatalog;
 const validNames = new Set(catalog.names());
@@ -24,6 +28,7 @@ const editing = ref(false);
 const editTitle = ref("");
 const exerciseLines = ref<string[]>([""]);
 const saveHint = ref(false);
+const persistError = ref<string | null>(null);
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 
 const draggedIndex = ref<number | null>(null);
@@ -45,10 +50,16 @@ function exercisesToPersist(lines: string[]) {
 
 async function persistEdit() {
   if (!editing.value || !sessionId.value) return;
-  await kintoreSessions.updateSession(sessionId.value, {
+  const res = await kintoreSessions.updateSession(sessionId.value, {
     title: editTitle.value,
     exercises: exercisesToPersist(exerciseLines.value),
   });
+  if (!res.ok) {
+    persistError.value = res.message;
+    saveHint.value = false;
+    return;
+  }
+  persistError.value = null;
   bumpSession();
   showSaved();
 }
@@ -68,10 +79,15 @@ function enterEditMode() {
 
 async function flushPersistAndExitEdit() {
   if (editing.value && sessionId.value) {
-    await kintoreSessions.updateSession(sessionId.value, {
+    const res = await kintoreSessions.updateSession(sessionId.value, {
       title: editTitle.value,
       exercises: exercisesToPersist(exerciseLines.value),
     });
+    if (!res.ok) {
+      persistError.value = res.message;
+      return;
+    }
+    persistError.value = null;
     bumpSession();
   }
   editing.value = false;
@@ -110,10 +126,97 @@ function removeExerciseRow(i: number) {
   void persistEdit();
 }
 
-function onExerciseSelectChange(i: number, e: Event) {
-  exerciseLines.value[i] = (e.target as HTMLSelectElement).value;
+const allExerciseNames = catalog.names();
+
+const comboOpenIndex = ref<number | null>(null);
+const comboQuery = ref("");
+const comboBaseline = ref("");
+let comboCloseTimer: ReturnType<typeof setTimeout> | null = null;
+
+const filteredExerciseNamesForCombo = computed(() => {
+  const q = comboQuery.value;
+  if (!q.trim()) return allExerciseNames;
+  return allExerciseNames.filter((n) => matchesExerciseSearch(n, q));
+});
+
+function clearComboTimer() {
+  if (comboCloseTimer) {
+    clearTimeout(comboCloseTimer);
+    comboCloseTimer = null;
+  }
+}
+
+function closeComboCommit() {
+  const i = comboOpenIndex.value;
+  if (i == null) return;
+  const q = comboQuery.value.trim();
+  let next = comboBaseline.value;
+  if (q === "") next = "";
+  else if (validNames.has(q)) next = q;
+  else {
+    const resolved = resolveExerciseNameFromInput(q, validNames, allExerciseNames);
+    next = resolved ?? comboBaseline.value;
+  }
+  const prev = exerciseLines.value[i] ?? "";
+  if (prev !== next) {
+    exerciseLines.value[i] = next;
+    exerciseLines.value = [...exerciseLines.value];
+    void persistEdit();
+  }
+  comboOpenIndex.value = null;
+}
+
+function onExerciseComboFocus(i: number) {
+  clearComboTimer();
+  if (comboOpenIndex.value !== null && comboOpenIndex.value !== i) {
+    closeComboCommit();
+  }
+  comboOpenIndex.value = i;
+  comboBaseline.value = exerciseLines.value[i] ?? "";
+  comboQuery.value = exerciseLines.value[i] ?? "";
+}
+
+function onExerciseComboBlur() {
+  comboCloseTimer = setTimeout(() => {
+    closeComboCommit();
+    comboCloseTimer = null;
+  }, 200);
+}
+
+function onExerciseComboInput(e: Event) {
+  comboQuery.value = (e.target as HTMLInputElement).value;
+}
+
+function pickExerciseFromCombo(i: number, name: string) {
+  clearComboTimer();
+  exerciseLines.value[i] = name;
   exerciseLines.value = [...exerciseLines.value];
+  comboOpenIndex.value = null;
   void persistEdit();
+}
+
+function onExerciseComboKeydown(i: number, e: KeyboardEvent) {
+  if (e.key === "Escape") {
+    e.preventDefault();
+    clearComboTimer();
+    comboQuery.value = comboBaseline.value;
+    comboOpenIndex.value = null;
+    (e.target as HTMLInputElement).blur();
+    return;
+  }
+  if (e.key === "Enter") {
+    const filtered = filteredExerciseNamesForCombo.value;
+    const t = comboQuery.value.trim();
+    e.preventDefault();
+    if (filtered.length === 1) {
+      pickExerciseFromCombo(i, filtered[0]!);
+    } else if (validNames.has(t)) {
+      pickExerciseFromCombo(i, t);
+    } else {
+      const resolved = resolveExerciseNameFromInput(t, validNames, allExerciseNames);
+      if (resolved) pickExerciseFromCombo(i, resolved);
+    }
+  }
 }
 
 function onTitleChange() {
@@ -201,8 +304,16 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  clearComboTimer();
   document.removeEventListener("visibilitychange", onVis);
   window.removeEventListener("pageshow", onPageShow);
+});
+
+watch(editing, (on) => {
+  if (!on) {
+    clearComboTimer();
+    comboOpenIndex.value = null;
+  }
 });
 
 async function onVis() {
@@ -364,17 +475,57 @@ function onPageShow(e: PageTransitionEvent) {
                 削除
               </button>
             </div>
-            <select
-              :value="exerciseLines[i]"
-              class="session-exercise-select"
-              aria-label="トレーニング種目"
-              @change="onExerciseSelectChange(i, $event)"
+            <div
+              class="session-exercise-combo"
+              :class="{ 'session-exercise-combo--open': comboOpenIndex === i }"
             >
-              <option value="">ーー</option>
-              <option v-for="name in catalog.names()" :key="name" :value="name">
-                {{ name }}
-              </option>
-            </select>
+              <input
+                :id="`session-exercise-combo-${i}`"
+                type="text"
+                enterkeyhint="search"
+                autocomplete="off"
+                autocorrect="off"
+                spellcheck="false"
+                class="session-exercise-combo-input"
+                role="combobox"
+                aria-autocomplete="list"
+                :aria-expanded="comboOpenIndex === i ? 'true' : 'false'"
+                :aria-controls="`session-exercise-listbox-${i}`"
+                :aria-label="`種目${i + 1}を検索して選択`"
+                placeholder="種目を検索"
+                :value="comboOpenIndex === i ? comboQuery : line"
+                @focus="onExerciseComboFocus(i)"
+                @blur="onExerciseComboBlur"
+                @input="onExerciseComboInput($event)"
+                @keydown="onExerciseComboKeydown(i, $event)"
+              />
+              <ul
+                v-show="comboOpenIndex === i"
+                :id="`session-exercise-listbox-${i}`"
+                class="session-exercise-combo-list"
+                role="listbox"
+                :aria-label="`種目${i + 1}の候補`"
+                @mousedown.prevent
+              >
+                <li
+                  v-for="name in filteredExerciseNamesForCombo"
+                  :key="name"
+                  class="session-exercise-combo-option"
+                  role="option"
+                  :aria-selected="line === name ? 'true' : 'false'"
+                  @mousedown="pickExerciseFromCombo(i, name)"
+                >
+                  {{ name }}
+                </li>
+                <li
+                  v-if="filteredExerciseNamesForCombo.length === 0"
+                  class="session-exercise-combo-empty"
+                  role="presentation"
+                >
+                  該当する種目がありません
+                </li>
+              </ul>
+            </div>
             <div
               v-if="!line || !validNames.has(line)"
               class="session-exercise-guide session-exercise-guide--placeholder"
@@ -406,6 +557,9 @@ function onPageShow(e: PageTransitionEvent) {
       </section>
 
       <p id="save-hint" class="save-hint" :hidden="!saveHint">保存しました</p>
+      <p v-if="persistError" class="firestore-alert" role="alert">
+        {{ persistError }}
+      </p>
     </div>
   </main>
 </template>

@@ -1,3 +1,5 @@
+@import "./exercise-combo.css";
+
 .training-title-row {
   display: flex;
   align-items: center;
@@ -62,7 +64,7 @@
 .training-sets {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 20px;
 }
 
 .training-set {
@@ -70,6 +72,11 @@
   border-radius: var(--radius);
   border: 1px solid var(--border);
   background: var(--bg);
+}
+
+.training-set:has(.session-exercise-combo--open) {
+  position: relative;
+  z-index: 5;
 }
 
 .training-set__toolbar {
@@ -161,21 +168,26 @@
   border-color: transparent;
 }
 
-.btn-add-set {
+/* テンプレート class は training-add-set（旧 btn-add-set は未使用） */
+.training-add-set {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 100%;
-  margin: 0;
-  padding: 12px 14px;
+  margin-top: 14px;
+  padding: 14px 16px;
+  border: none;
   border-radius: var(--radius);
-  border: 1px dashed var(--border);
-  background: var(--surface);
+  background: var(--accent);
+  color: #fff;
   font: inherit;
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--accent);
+  font-size: 0.9375rem;
+  font-weight: 700;
   cursor: pointer;
   touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.btn-add-set:active {
-  background: var(--surface-pressed);
+.training-add-set:active {
+  opacity: 0.92;
 }

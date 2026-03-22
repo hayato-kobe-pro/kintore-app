@@ -1,6 +1,20 @@
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import {
+  doc,
+  getDoc,
+  serverTimestamp,
+  setDoc,
+} from "firebase/firestore";
 import { stripUndefined } from "~/utils/firestoreSanitize";
+import {
+  firestoreBlocked,
+  firestoreOk,
+  MSG_NO_FIRESTORE,
+  MSG_NO_USER,
+  toUserFirestoreMessage,
+  type FirestorePersistResult,
+} from "~/utils/firestorePersist";
 
+/** ログインユーザーのプロフィール: `users/{uid}/settings/profile` */
 export function useProfileFirestore() {
   const nuxtApp = useNuxtApp();
   const { user, waitUntilReady } = useFirebaseAuth();
@@ -16,16 +30,25 @@ export function useProfileFirestore() {
       : {};
   }
 
-  async function merge(data: Record<string, unknown>): Promise<void> {
+  async function merge(
+    data: Record<string, unknown>,
+  ): Promise<FirestorePersistResult> {
     await waitUntilReady();
     const uid = user.value?.uid;
     const db = nuxtApp.$firestoreDb;
-    if (!uid || !db) return;
-    await setDoc(
-      doc(db, "users", uid, "settings", "profile"),
-      stripUndefined(data) as Record<string, unknown>,
-      { merge: true },
-    );
+    if (!db) return firestoreBlocked(MSG_NO_FIRESTORE);
+    if (!uid) return firestoreBlocked(MSG_NO_USER);
+    const payload = stripUndefined(data) as Record<string, unknown>;
+    try {
+      await setDoc(
+        doc(db, "users", uid, "settings", "profile"),
+        { ...payload, updatedAt: serverTimestamp() },
+        { merge: true },
+      );
+      return firestoreOk();
+    } catch (e) {
+      return { ok: false, message: toUserFirestoreMessage(e) };
+    }
   }
 
   return { load, merge };

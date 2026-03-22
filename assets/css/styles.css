@@ -476,3 +476,14 @@ body {
   text-align: center;
 }
 
+.firestore-alert {
+  margin: 12px 0 0;
+  padding: 12px 14px;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  background: #fce8e6;
+  color: #c5221f;
+  border: 1px solid #f0b4ae;
+}
+

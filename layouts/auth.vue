@@ -1,7 +1,12 @@
 <template>
   <div class="auth-layout">
     <header class="auth-layout__header">
-      <NuxtLink to="/" class="site-logo" aria-label="ホーム（DAIKI Fit）">
+      <NuxtLink
+        to="/"
+        class="site-logo"
+        aria-label="ホーム（DAIKI Fit）"
+        :prefetch="false"
+      >
         <span class="site-logo__mark" aria-hidden="true">
           <img
             src="/daiki-fit.png"

@@ -9,6 +9,7 @@ const idealBody = ref("");
 const purpose = ref("");
 const achievementGoals = ref("");
 const saveHint = ref(false);
+const saveError = ref<string | null>(null);
 let saveHintTimer: ReturnType<typeof setTimeout> | null = null;
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -34,14 +35,28 @@ function visionPayload() {
 }
 
 async function persistAll() {
-  await visionFs.merge(visionPayload());
+  const r = await visionFs.merge(visionPayload());
+  if (!r.ok) {
+    saveError.value = r.message;
+    saveHint.value = false;
+    return;
+  }
+  saveError.value = null;
   showSaved();
 }
 
 function debouncedPersist() {
   if (debounceTimer) clearTimeout(debounceTimer);
   debounceTimer = setTimeout(() => {
-    void visionFs.merge(visionPayload()).then(() => showSaved());
+    void visionFs.merge(visionPayload()).then((r) => {
+      if (!r.ok) {
+        saveError.value = r.message;
+        saveHint.value = false;
+        return;
+      }
+      saveError.value = null;
+      showSaved();
+    });
   }, 400);
 }
 
@@ -72,10 +87,12 @@ onMounted(async () => {
 </script>
 
 <template>
-  <main class="main">
-    <h1 class="page-title">ビジョン</h1>
+  <main class="main vision-main">
+    <h1 class="page-title vision-page-title">ビジョン</h1>
 
-    <form class="profile-form" autocomplete="off" @submit.prevent>
+    <p v-if="saveError" class="firestore-alert" role="alert">{{ saveError }}</p>
+
+    <form class="profile-form vision-form" autocomplete="off" @submit.prevent>
       <section class="card vision-card" aria-labelledby="vision-ideal-heading">
         <h2 id="vision-ideal-heading" class="profile-section-title">理想の体</h2>
         <div class="fields">
@@ -115,16 +132,13 @@ onMounted(async () => {
         </h2>
         <div class="fields">
           <div class="field">
-            <span class="field-label">
-              <span class="field-label-dot" style="background: var(--c-protein)" />
-              自由入力（300文字まで）
-            </span>
             <textarea
               id="vision-purpose"
               v-model="purpose"
               class="vision-textarea"
               maxlength="300"
               rows="5"
+              aria-labelledby="vision-purpose-heading"
               placeholder="なぜボディメイクをしたいか、モチベーションや背景など"
               @input="onPurposeInput"
             />
@@ -145,16 +159,13 @@ onMounted(async () => {
         </h2>
         <div class="fields">
           <div class="field">
-            <span class="field-label">
-              <span class="field-label-dot" style="background: var(--c-cal)" />
-              自由入力（300文字まで）
-            </span>
             <textarea
               id="vision-achievement-goals"
               v-model="achievementGoals"
               class="vision-textarea"
               maxlength="300"
               rows="5"
+              aria-labelledby="vision-goals-heading"
               placeholder="数値・期限・イベントなど、達成したいことを具体的に"
               @input="onGoalsInput"
             />

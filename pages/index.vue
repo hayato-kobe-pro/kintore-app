@@ -1,5 +1,9 @@
 <script setup lang="ts">
+import type { DisplayGoalKey } from "~/utils/displayGoalsFromProfile";
+
 const { getDay, mergeDay } = useDailyFirestore();
+const { goals: displayGoals, refresh: refreshDisplayGoals } =
+  useKintoreDisplayGoals();
 
 const GOAL_DEFS = [
   { key: "weight", label: "体重", unit: "kg", color: "var(--c-weight)", step: "0.1" },
@@ -21,16 +25,6 @@ const DAILY_DEFS = [
     type: "condition" as const,
   },
 ];
-
-const DEFAULT_GOALS: Record<string, number> = {
-  weight: 65,
-  calories: 1844,
-  protein: 152,
-  fat: 31,
-  carbs: 240,
-  fiber: 20,
-  sleep: 7,
-};
 
 function ymd(d: Date) {
   const y = d.getFullYear();
@@ -62,16 +56,7 @@ currentDate.value.setHours(12, 0, 0, 0);
 const calendarViewMonth = ref(new Date(currentDate.value));
 const calendarDialog = ref<HTMLDialogElement | null>(null);
 const calendarExpanded = ref(false);
-const saveHint = ref(false);
-let saveHintTimer: ReturnType<typeof setTimeout> | null = null;
-
-function showSaved() {
-  saveHint.value = true;
-  if (saveHintTimer) clearTimeout(saveHintTimer);
-  saveHintTimer = setTimeout(() => {
-    saveHint.value = false;
-  }, 1200);
-}
+const persistError = ref<string | null>(null);
 
 async function loadDayForCurrentDate() {
   const key = ymd(currentDate.value);
@@ -79,13 +64,20 @@ async function loadDayForCurrentDate() {
 }
 
 watch(currentDate, () => {
+  persistError.value = null;
   loadDayForCurrentDate();
 });
 
 async function setEntry(key: string, patch: Record<string, unknown>) {
+  const prev = { ...dayData.value };
   dayData.value = { ...dayData.value, ...patch };
-  await mergeDay(key, patch);
-  showSaved();
+  const r = await mergeDay(key, patch);
+  if (!r.ok) {
+    persistError.value = r.message;
+    dayData.value = prev;
+    return;
+  }
+  persistError.value = null;
 }
 
 const dateDisplay = computed(() => formatHeaderDate(currentDate.value));
@@ -96,6 +88,10 @@ const entry = computed(() => dayData.value);
 function formatGoalNumber(n: number | undefined) {
   if (n === undefined) return "—";
   return Number.isInteger(n) ? String(n) : String(n);
+}
+
+function goalRowValue(key: string) {
+  return formatGoalNumber(displayGoals.value[key as DisplayGoalKey]);
 }
 
 function monthFirst(d: Date) {
@@ -196,8 +192,14 @@ function onConditionRadio(e: Event) {
   onConditionChange(v);
 }
 
+function onVisibilityGoals() {
+  if (document.visibilityState === "visible") void refreshDisplayGoals();
+}
+
 onMounted(() => {
+  void refreshDisplayGoals();
   loadDayForCurrentDate();
+  document.addEventListener("visibilitychange", onVisibilityGoals);
   const el = calendarDialog.value;
   if (!el) return;
   el.addEventListener("close", () => {
@@ -206,6 +208,10 @@ onMounted(() => {
   el.addEventListener("click", (e) => {
     if (e.target === el) closeCalendar();
   });
+});
+
+onUnmounted(() => {
+  document.removeEventListener("visibilitychange", onVisibilityGoals);
 });
 </script>
 
@@ -226,7 +232,6 @@ onMounted(() => {
           @click="openCalendar"
         >
           <span class="date-label" aria-live="polite">{{ dateDisplay }}</span>
-          <span class="date-picker-hint">日付を選択</span>
         </button>
       </div>
       <button type="button" class="nav-btn" aria-label="次の日" @click="goDay(1)">
@@ -254,9 +259,7 @@ onMounted(() => {
                 />
                 {{ d.label }}<span class="unit">（{{ d.unit }}）</span>
               </span>
-              <span class="goal-value">{{
-                formatGoalNumber(DEFAULT_GOALS[d.key])
-              }}</span>
+              <span class="goal-value">{{ goalRowValue(d.key) }}</span>
             </div>
           </div>
         </div>
@@ -339,7 +342,13 @@ onMounted(() => {
             </div>
           </template>
         </div>
-        <p class="save-hint" :hidden="!saveHint">保存しました</p>
+        <p
+          v-if="persistError"
+          class="firestore-alert"
+          role="alert"
+        >
+          {{ persistError }}
+        </p>
       </form>
     </section>
   </main>

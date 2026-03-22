@@ -1,3 +1,30 @@
+/* カード見出し: .profile-card 配下用のスタイルが当たらないため明示（他画面の .section-title に合わせる） */
+.vision-card .profile-section-title {
+  margin: 0 0 10px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+}
+
+.vision-card {
+  padding-top: 12px;
+  padding-bottom: 14px;
+}
+
+.vision-main {
+  gap: 10px;
+}
+
+.vision-page-title {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.vision-form {
+  gap: 12px;
+}
+
 .vision-card .fields {
   gap: 18px;
 }

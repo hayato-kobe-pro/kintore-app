@@ -34,12 +34,6 @@ async function onVisibility() {
   <main class="main">
     <h1 class="page-title">トレーニングセッション</h1>
 
-    <div class="sessions-actions">
-      <NuxtLink to="/training-sessions/new" class="sessions-btn-primary">
-        ＋ 新規セッション
-      </NuxtLink>
-    </div>
-
     <section class="card" aria-labelledby="sessions-list-heading">
       <h2 id="sessions-list-heading" class="section-title">一覧</h2>
       <ul id="sessions-list" class="sessions-list">
@@ -54,6 +48,12 @@ async function onVisibility() {
         </li>
       </ul>
     </section>
+
+    <div class="sessions-actions">
+      <NuxtLink to="/training-sessions/new" class="sessions-btn-primary">
+        ＋ 新規セッション
+      </NuxtLink>
+    </div>
   </main>
 </template>
 

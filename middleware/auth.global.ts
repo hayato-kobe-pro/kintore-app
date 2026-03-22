@@ -5,11 +5,18 @@ function safeInternalPath(path: unknown, fallback = "/") {
   return path;
 }
 
+function redirectQueryValue(
+  q: string | string[] | undefined | null,
+): string {
+  if (q == null) return "";
+  return typeof q === "string" ? q : q[0] ?? "";
+}
+
 /**
  * Firebase 未設定時は /setup のみ。
  * 設定済みなら /setup はホームへ。ログイン必須（/login を除く）。
  */
-export default defineNuxtRouteMiddleware(async (to) => {
+export default defineNuxtRouteMiddleware(async (to, from) => {
   const config = useRuntimeConfig().public;
 
   if (!config.firebaseApiKey) {
@@ -41,6 +48,26 @@ export default defineNuxtRouteMiddleware(async (to) => {
   }
 
   if (!user.value) {
+    // ログイン画面から「/」等へのプリフェッチが未ログインガードに引っかかり、
+    // 数秒ごとに navigateTo が繰り返されてチラつくのを防ぐ
+    if (from?.path === "/login") {
+      const saved = redirectQueryValue(from.query.redirect);
+
+      if (saved === to.fullPath) {
+        return abortNavigation();
+      }
+
+      if (to.path === "/" && saved && saved !== "/") {
+        return abortNavigation();
+      }
+
+      if (!saved && to.fullPath === "/") {
+        return navigateTo({ path: "/login", query: { redirect: "/" } });
+      }
+
+      return navigateTo({ path: "/login", query: { redirect: to.fullPath } });
+    }
+
     return navigateTo({
       path: "/login",
       query: { redirect: to.fullPath },

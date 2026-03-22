@@ -2,12 +2,19 @@
 useHead({ title: "新規セッション" });
 
 const title = ref("");
+const submitError = ref<string | null>(null);
 const kintoreSessions = useKintoreSessions();
 
 async function onSubmit(e: Event) {
   e.preventDefault();
-  const id = await kintoreSessions.addCustomSession(title.value);
-  await navigateTo(`/training-sessions/${encodeURIComponent(id)}`);
+  submitError.value = null;
+  try {
+    const id = await kintoreSessions.addCustomSession(title.value);
+    await navigateTo(`/training-sessions/${encodeURIComponent(id)}`);
+  } catch (err) {
+    submitError.value =
+      err instanceof Error ? err.message : "登録に失敗しました。";
+  }
 }
 </script>
 
@@ -19,6 +26,10 @@ async function onSubmit(e: Event) {
       </NuxtLink>
     </div>
     <h1 class="page-title">新規セッション</h1>
+
+    <p v-if="submitError" class="firestore-alert" role="alert">
+      {{ submitError }}
+    </p>
 
     <form class="card form-new-session" autocomplete="off" @submit="onSubmit">
       <div class="field">

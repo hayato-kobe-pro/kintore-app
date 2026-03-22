@@ -8,6 +8,14 @@ import {
   setDoc,
   where,
 } from "firebase/firestore";
+import {
+  firestoreBlocked,
+  firestoreOk,
+  MSG_NO_FIRESTORE,
+  MSG_NO_USER,
+  toUserFirestoreMessage,
+  type FirestorePersistResult,
+} from "~/utils/firestorePersist";
 
 export function useTrainingFirestore() {
   const nuxtApp = useNuxtApp();
@@ -47,16 +55,25 @@ export function useTrainingFirestore() {
     return Array.isArray(sets) ? sets : [];
   }
 
-  async function saveDay(dateYmd: string, sets: unknown[]): Promise<void> {
+  async function saveDay(
+    dateYmd: string,
+    sets: unknown[],
+  ): Promise<FirestorePersistResult> {
     await waitUntilReady();
     const uid = user.value?.uid;
     const db = nuxtApp.$firestoreDb;
-    if (!uid || !db) return;
-    await setDoc(
-      doc(db, "users", uid, "training", dateYmd),
-      { sets: JSON.parse(JSON.stringify(sets)) },
-      { merge: true },
-    );
+    if (!db) return firestoreBlocked(MSG_NO_FIRESTORE);
+    if (!uid) return firestoreBlocked(MSG_NO_USER);
+    try {
+      await setDoc(
+        doc(db, "users", uid, "training", dateYmd),
+        { sets: JSON.parse(JSON.stringify(sets)) },
+        { merge: true },
+      );
+      return firestoreOk();
+    } catch (e) {
+      return { ok: false, message: toUserFirestoreMessage(e) };
+    }
   }
 
   return { fetchRange, getDay, saveDay };
