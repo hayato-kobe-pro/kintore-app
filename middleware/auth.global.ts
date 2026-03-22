@@ -6,12 +6,22 @@ function safeInternalPath(path: unknown, fallback = "/") {
 }
 
 /**
- * Firebase が設定されているときだけ必須認証。
- * 未設定のときは従来どおり localStorage のみ（開発用）。
+ * Firebase 未設定時は /setup のみ。
+ * 設定済みなら /setup はホームへ。ログイン必須（/login を除く）。
  */
 export default defineNuxtRouteMiddleware(async (to) => {
   const config = useRuntimeConfig().public;
-  if (!config.firebaseApiKey) return;
+
+  if (!config.firebaseApiKey) {
+    if (to.path !== "/setup") {
+      return navigateTo("/setup");
+    }
+    return;
+  }
+
+  if (to.path === "/setup") {
+    return navigateTo("/");
+  }
 
   const nuxtApp = useNuxtApp();
   const fb = nuxtApp.$firebaseAuth;

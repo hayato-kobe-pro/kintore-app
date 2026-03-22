@@ -1,6 +1,6 @@
 # DAIKI Fit（Nuxt 版）
 
-ルート直下の静的 HTML アプリと同じデータ（`localStorage` のキー）を使うクライアント専用（`ssr: false`）の Nuxt 3 アプリです。
+クライアント専用（`ssr: false`）の Nuxt 3 アプリです。Firebase を設定した場合は **Firestore にユーザーごとにデータを保存**し、未設定時は `/setup` で案内のみ（または従来の開発用フローに依存）です。
 
 ## 必要環境
 
@@ -38,29 +38,33 @@ npm run build
 npx serve .output/public
 ```
 
-## メール／パスワード認証（Firebase Authentication）
+## メール／パスワード認証（Firebase Authentication）と Firestore
 
-`.env` に `NUXT_PUBLIC_FIREBASE_*` を設定すると、**未ログイン時は `/login` にリダイレクト**されます。変数が **空のまま**のときは認証なし（従来どおり `localStorage` のみ）で動きます。
+`.env` に `NUXT_PUBLIC_FIREBASE_*` を設定すると、**未ログイン時は `/login` にリダイレクト**され、ログイン後は **Firestore** の `users/{uid}/...` に日次・トレーニング・セッション・プロフィール・ビジョンを保存します。変数が **空のまま**のときは **`/setup`** のみ利用可能です。
 
 1. [Firebase Console](https://console.firebase.google.com/) → プロジェクト → **Authentication** → **Sign-in method** で **メール／パスワード** を有効化
-2. プロジェクト設定 → 全般 → **マイアプリ** の Web 設定から値をコピー
-3. `nuxt-app` に `.env` を作成（`.env.example` を参考）:
+2. **Firestore** を作成し、ルートの `firestore.rules` をデプロイ（`firebase deploy --only firestore:rules` など）。ルール例はリポジトリの `firestore.rules`（本人の `users/{uid}/**` のみ読み書き可）
+3. プロジェクト設定 → 全般 → **マイアプリ** の Web 設定から値をコピー
+4. `nuxt-app` に `.env` を作成（`.env.example` を参考）:
 
 ```bash
 cp .env.example .env
 # 各キーを編集
 ```
 
-4. `npm run dev` を再起動
+5. `npm run dev` を再起動
 
 ログイン後、ドロワーメニュー下部にメールアドレスと **ログアウト** が表示されます。
 
 本番（Firebase Hosting など）では、Console の **承認済みドメイン** にデプロイ先のドメインを追加してください。
 
+初回ログイン時、クライアントは旧 `localStorage` キー（`kintore-*-v1`）を **削除**して Firestore との混在を防ぎます。
+
 ## ルーティング
 
 | パス | 内容 |
 |------|------|
+| `/setup` | Firebase 未設定時の案内 |
 | `/login` | ログイン・新規登録（Firebase 設定時のみガードの対象外） |
 | `/` | コンディションレコード |
 | `/graph` | コンディションログ（Chart.js） |
@@ -78,4 +82,4 @@ cp .env.example .env
 
 ## 静的版との関係
 
-- 同じ `localStorage` キー（例: `kintore-daily-v1`, `kintore-training-v1`, `kintore-sessions-v1` など）を共有するため、**同じオリジンで開けばデータは引き続き使えます**（別ポートでもオリジンが異なるため共有されません）。
+リポジトリルートの静的 HTML は別物です。Nuxt 版は Firebase 利用時 **クラウドのユーザー別データ**を参照し、ルート静的版の `localStorage` とは共有しません。

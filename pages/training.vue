@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { KintoreExerciseCatalog } from "~/utils/exerciseCatalog";
-import { KintoreSessions } from "~/utils/sessionsStore";
 
-const STORAGE_KEY = "kintore-training-v1";
+const { getDay: getTrainingDay, saveDay: saveTrainingDay } =
+  useTrainingFirestore();
+const kintoreSessions = useKintoreSessions();
+
 const SOURCE_NEW = "__new__";
 
 const EXERCISE_OPTIONS = KintoreExerciseCatalog.names();
@@ -38,26 +40,6 @@ function normalizeStoredSet(s: unknown): SetRow {
   return { exercise, weight, reps };
 }
 
-function loadState() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { entries: {} as Record<string, SetRow[]> };
-    const parsed = JSON.parse(raw) as { entries?: Record<string, unknown[]> };
-    return {
-      entries:
-        parsed.entries && typeof parsed.entries === "object"
-          ? (parsed.entries as Record<string, SetRow[]>)
-          : {},
-    };
-  } catch {
-    return { entries: {} as Record<string, SetRow[]> };
-  }
-}
-
-function saveState(state: { entries: Record<string, SetRow[]> }) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-}
-
 function ymd(d: Date) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -82,7 +64,6 @@ function formatHeaderDate(d: Date) {
 useHead({ title: "トレーニングレコード" });
 
 const route = useRoute();
-const state = reactive(loadState());
 const currentDate = ref(new Date());
 currentDate.value.setHours(12, 0, 0, 0);
 
@@ -107,7 +88,7 @@ const lastSessionSourceValue = ref(SOURCE_NEW);
 const sessionsTick = ref(0);
 const sessionOptions = computed(() => {
   sessionsTick.value;
-  return KintoreSessions.listSessions();
+  return kintoreSessions.listSessions();
 });
 
 function bumpSessionOptions() {
@@ -122,27 +103,22 @@ function showSaved() {
   }, 1200);
 }
 
-function getSetsForDate(key: string): SetRow[] {
-  const raw = state.entries[key];
-  if (!Array.isArray(raw) || raw.length === 0) {
-    return [emptySet()];
-  }
-  return raw.map((x) => normalizeStoredSet(x));
-}
-
 const sets = ref<SetRow[]>([]);
 
-function persistSets() {
+async function persistSets() {
   const key = ymd(currentDate.value);
-  state.entries[key] = sets.value.map((s) => ({ ...s }));
-  saveState(state);
+  await saveTrainingDay(key, sets.value.map((s) => ({ ...s })));
   showSaved();
 }
 
-function loadSetsForCurrentDate() {
-  sets.value = getSetsForDate(ymd(currentDate.value)).map((s) => ({
-    ...s,
-  }));
+async function loadSetsForCurrentDate() {
+  const key = ymd(currentDate.value);
+  const raw = await getTrainingDay(key);
+  if (!raw || !Array.isArray(raw) || raw.length === 0) {
+    sets.value = [emptySet()];
+  } else {
+    sets.value = raw.map((x) => normalizeStoredSet(x));
+  }
 }
 
 function resetTrainingSourceSelect() {
@@ -150,9 +126,9 @@ function resetTrainingSourceSelect() {
   lastSessionSourceValue.value = SOURCE_NEW;
 }
 
-function applySessionTemplate(sessionId: string) {
+async function applySessionTemplate(sessionId: string) {
   if (!sessionId || sessionId === SOURCE_NEW) return;
-  const sess = KintoreSessions.getSession(sessionId);
+  const sess = kintoreSessions.getSession(sessionId);
   if (!sess) return;
   const names = (sess.exercises || []).filter((n) =>
     EXERCISE_OPTIONS.includes(String(n).trim()),
@@ -161,9 +137,7 @@ function applySessionTemplate(sessionId: string) {
     names.length > 0
       ? names.map((exercise) => ({ exercise, weight: "", reps: "" }))
       : [emptySet()];
-  state.entries[ymd(currentDate.value)] = sets.value.map((s) => ({ ...s }));
-  saveState(state);
-  showSaved();
+  await persistSets();
 }
 
 function hasAnySetInput() {
@@ -192,23 +166,23 @@ function onSessionSourceChange() {
       return;
     }
   }
-  applySessionTemplate(v);
+  void applySessionTemplate(v);
   lastSessionSourceValue.value = v;
 }
 
 function addSet() {
   sets.value.push(emptySet());
-  persistSets();
+  void persistSets();
 }
 
 function removeSet(i: number) {
   sets.value.splice(i, 1);
   if (sets.value.length === 0) sets.value.push(emptySet());
-  persistSets();
+  void persistSets();
 }
 
 function onSetFieldChange() {
-  persistSets();
+  void persistSets();
 }
 
 function formatWeightForInput(w: number | "") {
@@ -224,13 +198,13 @@ function formatRepsForInput(r: number | "") {
 function onWeightChange(i: number, raw: string) {
   const num = raw === "" ? "" : Number(raw);
   sets.value[i].weight = Number.isFinite(num as number) ? (num as number) : "";
-  onSetFieldChange();
+  void persistSets();
 }
 
 function onRepsChange(i: number, raw: string) {
   const num = raw === "" ? "" : parseInt(raw, 10);
   sets.value[i].reps = Number.isFinite(num as number) ? (num as number) : "";
-  onSetFieldChange();
+  void persistSets();
 }
 
 function onWeightInput(i: number, e: Event) {
@@ -317,8 +291,6 @@ function selectCalendarDay(key: string) {
   const d = parseYmd(key);
   d.setHours(12, 0, 0, 0);
   currentDate.value = d;
-  resetTrainingSourceSelect();
-  loadSetsForCurrentDate();
   closeCalendar();
 }
 
@@ -326,8 +298,6 @@ function goToday() {
   const t = new Date();
   t.setHours(12, 0, 0, 0);
   currentDate.value = t;
-  resetTrainingSourceSelect();
-  loadSetsForCurrentDate();
   closeCalendar();
 }
 
@@ -336,20 +306,22 @@ function goDay(delta: number) {
   d.setDate(d.getDate() + delta);
   d.setHours(12, 0, 0, 0);
   currentDate.value = d;
+}
+
+async function onVisibility() {
+  if (document.visibilityState === "visible") {
+    await kintoreSessions.refresh();
+    bumpSessionOptions();
+  }
+}
+
+watch(currentDate, () => {
+  void loadSetsForCurrentDate();
   resetTrainingSourceSelect();
-  loadSetsForCurrentDate();
-}
-
-function onStorage(e: StorageEvent) {
-  if (e.key === "kintore-sessions-v1") bumpSessionOptions();
-}
-
-function onVisibility() {
-  if (document.visibilityState === "visible") bumpSessionOptions();
-}
+});
 
 onMounted(() => {
-  loadSetsForCurrentDate();
+  void loadSetsForCurrentDate();
   lastSessionSourceValue.value = sessionSource.value;
   const el = calendarDialog.value;
   if (el) {
@@ -360,12 +332,10 @@ onMounted(() => {
       if (e.target === el) closeCalendar();
     });
   }
-  window.addEventListener("storage", onStorage);
   document.addEventListener("visibilitychange", onVisibility);
 });
 
 onUnmounted(() => {
-  window.removeEventListener("storage", onStorage);
   document.removeEventListener("visibilitychange", onVisibility);
 });
 </script>
@@ -455,7 +425,7 @@ onUnmounted(() => {
               v-model="s.exercise"
               class="training-select"
               aria-label="トレーニング種目"
-              @change="onSetFieldChange()"
+              @change="onSetFieldChange"
             >
               <option value="">ーー</option>
               <option v-for="name in EXERCISE_OPTIONS" :key="name" :value="name">

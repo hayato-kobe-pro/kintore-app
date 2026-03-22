@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { KintoreSessions } from "~/utils/sessionsStore";
-
 useHead({ title: "トレーニングセッション" });
+
+const kintoreSessions = useKintoreSessions();
+const { ready } = kintoreSessions;
 
 const tick = ref(0);
 const sessions = computed(() => {
   tick.value;
-  return KintoreSessions.listSessions();
+  ready.value;
+  return kintoreSessions.listSessions();
 });
 
 function bump() {
@@ -21,8 +23,10 @@ onUnmounted(() => {
   document.removeEventListener("visibilitychange", onVisibility);
 });
 
-function onVisibility() {
-  if (document.visibilityState === "visible") bump();
+async function onVisibility() {
+  if (document.visibilityState !== "visible") return;
+  await kintoreSessions.refresh();
+  bump();
 }
 </script>
 

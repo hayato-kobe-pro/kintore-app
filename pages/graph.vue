@@ -8,7 +8,7 @@ import "~/assets/css/graph.css";
 
 Chart.register(...registerables);
 
-const STORAGE_KEY = "kintore-daily-v1";
+const { fetchRange } = useDailyFirestore();
 
 const CHART_SPECS = [
   {
@@ -95,19 +95,12 @@ function parseYmd(s: string) {
   return new Date(y, m - 1, day, 12, 0, 0, 0);
 }
 
-function loadEntries() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw) as {
-      entries?: Record<string, Record<string, unknown>>;
-    };
-    return parsed.entries && typeof parsed.entries === "object"
-      ? parsed.entries
-      : {};
-  } catch {
-    return {};
-  }
+const chartEntries = ref<Record<string, Record<string, unknown>>>({});
+
+async function loadEntriesForRange(start: Date, end: Date) {
+  const startYmd = ymd(start);
+  const endYmd = ymd(end);
+  chartEntries.value = await fetchRange(startYmd, endYmd);
 }
 
 function eachDayInclusive(start: Date, end: Date, fn: (d: Date) => void) {
@@ -216,7 +209,7 @@ function renderChartForSpec(
 
   destroyChart(spec.id);
 
-  const entries = loadEntries();
+  const entries = chartEntries.value;
   const { labels, values } = buildSeries(start, end, spec.field, entries);
   const n = countPoints(values);
   if (hintEl) hintEl.hidden = n > 0;
@@ -318,7 +311,7 @@ function renderAllCharts(start: Date, end: Date) {
   });
 }
 
-function refresh() {
+async function refresh() {
   let start: Date;
   let end: Date;
   if (mode.value === "custom") {
@@ -335,23 +328,24 @@ function refresh() {
     start = r.start;
     end = r.end;
   }
-  renderAllCharts(start, end);
+  await loadEntriesForRange(start, end);
+  nextTick(() => renderAllCharts(start, end));
 }
 
 function onPeriodChange() {
   if (mode.value === "custom") {
     initCustomDefaults();
   }
-  nextTick(() => refresh());
+  void nextTick(() => refresh());
 }
 
 function applyCustomRange() {
-  refresh();
+  void refresh();
 }
 
 onMounted(() => {
   initCustomDefaults();
-  refresh();
+  void refresh();
 });
 
 onBeforeUnmount(() => {
@@ -359,7 +353,7 @@ onBeforeUnmount(() => {
 });
 
 watch(mode, () => {
-  nextTick(() => refresh());
+  void nextTick(() => refresh());
 });
 </script>
 

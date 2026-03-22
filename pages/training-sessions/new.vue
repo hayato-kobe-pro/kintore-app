@@ -1,14 +1,13 @@
 <script setup lang="ts">
-import { KintoreSessions } from "~/utils/sessionsStore";
-
 useHead({ title: "新規セッション" });
 
 const title = ref("");
+const kintoreSessions = useKintoreSessions();
 
-function onSubmit(e: Event) {
+async function onSubmit(e: Event) {
   e.preventDefault();
-  const id = KintoreSessions.addCustomSession(title.value);
-  navigateTo(`/training-sessions/${encodeURIComponent(id)}`);
+  const id = await kintoreSessions.addCustomSession(title.value);
+  await navigateTo(`/training-sessions/${encodeURIComponent(id)}`);
 }
 </script>
 

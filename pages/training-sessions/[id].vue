@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { KintoreExerciseCatalog } from "~/utils/exerciseCatalog";
-import { KintoreSessions } from "~/utils/sessionsStore";
 
 const catalog = KintoreExerciseCatalog;
 const validNames = new Set(catalog.names());
 
 const route = useRoute();
 const sessionId = computed(() => String(route.params.id || ""));
+
+const kintoreSessions = useKintoreSessions();
+const { ready } = kintoreSessions;
 
 const sessionRev = ref(0);
 function bumpSession() {
@@ -15,7 +17,7 @@ function bumpSession() {
 
 const session = computed(() => {
   sessionRev.value;
-  return KintoreSessions.getSession(sessionId.value);
+  return kintoreSessions.getSession(sessionId.value);
 });
 
 const editing = ref(false);
@@ -41,9 +43,9 @@ function exercisesToPersist(lines: string[]) {
   return lines.filter((n) => validNames.has(n));
 }
 
-function persistEdit() {
+async function persistEdit() {
   if (!editing.value || !sessionId.value) return;
-  KintoreSessions.updateSession(sessionId.value, {
+  await kintoreSessions.updateSession(sessionId.value, {
     title: editTitle.value,
     exercises: exercisesToPersist(exerciseLines.value),
   });
@@ -52,7 +54,7 @@ function persistEdit() {
 }
 
 function syncEditorFromSession() {
-  const s = KintoreSessions.getSession(sessionId.value);
+  const s = kintoreSessions.getSession(sessionId.value);
   if (!s) return;
   editTitle.value = s.title;
   const stored = (s.exercises || []).filter((n) => validNames.has(n));
@@ -64,9 +66,9 @@ function enterEditMode() {
   syncEditorFromSession();
 }
 
-function flushPersistAndExitEdit() {
+async function flushPersistAndExitEdit() {
   if (editing.value && sessionId.value) {
-    KintoreSessions.updateSession(sessionId.value, {
+    await kintoreSessions.updateSession(sessionId.value, {
       title: editTitle.value,
       exercises: exercisesToPersist(exerciseLines.value),
     });
@@ -76,8 +78,8 @@ function flushPersistAndExitEdit() {
   saveHint.value = false;
 }
 
-function toggleMode() {
-  if (editing.value) flushPersistAndExitEdit();
+async function toggleMode() {
+  if (editing.value) await flushPersistAndExitEdit();
   else enterEditMode();
 }
 
@@ -100,22 +102,22 @@ function addExerciseRow() {
 function removeExerciseRow(i: number) {
   if (exerciseLines.value.length <= 1) {
     exerciseLines.value = [""];
-    persistEdit();
+    void persistEdit();
     return;
   }
   exerciseLines.value.splice(i, 1);
   exerciseLines.value = [...exerciseLines.value];
-  persistEdit();
+  void persistEdit();
 }
 
 function onExerciseSelectChange(i: number, e: Event) {
   exerciseLines.value[i] = (e.target as HTMLSelectElement).value;
   exerciseLines.value = [...exerciseLines.value];
-  persistEdit();
+  void persistEdit();
 }
 
 function onTitleChange() {
-  persistEdit();
+  void persistEdit();
 }
 
 function clearDropIndicators() {
@@ -169,14 +171,19 @@ function onDropRow(targetIndex: number, e: DragEvent) {
   lines.splice(insert, 0, moved);
   exerciseLines.value = lines;
   draggedIndex.value = null;
-  persistEdit();
+  void persistEdit();
 }
 
-onMounted(() => {
-  if (!KintoreSessions.getSession(sessionId.value)) {
-    navigateTo("/training-sessions");
-  }
-});
+watch(
+  [ready, sessionId],
+  async () => {
+    if (!ready.value) return;
+    if (!kintoreSessions.getSession(sessionId.value)) {
+      await navigateTo("/training-sessions");
+    }
+  },
+  { immediate: true },
+);
 
 watch(
   () => session.value?.title,
@@ -188,32 +195,25 @@ watch(
   { immediate: true },
 );
 
-function onStorage(e: StorageEvent) {
-  if (e.key !== "kintore-sessions-v1") return;
-  if (editing.value) return;
-  bumpSession();
-}
-
 onMounted(() => {
-  window.addEventListener("storage", onStorage);
   document.addEventListener("visibilitychange", onVis);
   window.addEventListener("pageshow", onPageShow);
 });
 
 onUnmounted(() => {
-  window.removeEventListener("storage", onStorage);
   document.removeEventListener("visibilitychange", onVis);
   window.removeEventListener("pageshow", onPageShow);
 });
 
-function onVis() {
+async function onVis() {
   if (document.visibilityState !== "visible" || editing.value) return;
+  await kintoreSessions.refresh();
   bumpSession();
 }
 
 function onPageShow(e: PageTransitionEvent) {
   if (e.persisted && !editing.value) {
-    /* session computed refreshes from storage */
+    void kintoreSessions.refresh().then(() => bumpSession());
   }
 }
 </script>

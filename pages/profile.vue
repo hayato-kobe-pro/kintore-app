@@ -1,6 +1,4 @@
 <script setup lang="ts">
-const STORAGE_KEY = "kintore-profile-v1";
-
 type Profile = {
   height: number | "";
   weight: number | "";
@@ -31,20 +29,37 @@ const DEFAULT_PROFILE: Profile = {
   goalSleep: "",
 };
 
-function loadProfile(): Profile {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { ...DEFAULT_PROFILE };
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
-    if (!parsed || typeof parsed !== "object") return { ...DEFAULT_PROFILE };
-    return { ...DEFAULT_PROFILE, ...parsed } as Profile;
-  } catch {
-    return { ...DEFAULT_PROFILE };
+function profileFromServer(data: Record<string, unknown>): Profile {
+  const p = { ...DEFAULT_PROFILE };
+  const numericKeys: (keyof Profile)[] = [
+    "height",
+    "weight",
+    "bodyFat",
+    "goalCalories",
+    "goalProtein",
+    "goalFat",
+    "goalCarbs",
+    "goalFiber",
+    "goalWeight",
+    "goalSleep",
+  ];
+  for (const key of numericKeys) {
+    if (!(key in data)) continue;
+    const v = data[key];
+    if (v === "" || v == null) {
+      (p as Record<string, number | "">)[key] = "";
+      continue;
+    }
+    const n = Number(v);
+    (p as Record<string, number | "">)[key] = Number.isFinite(n) ? n : "";
   }
-}
-
-function saveProfile(data: Profile) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  if ("trainingExperience" in data && data.trainingExperience != null) {
+    p.trainingExperience = String(data.trainingExperience);
+  }
+  if ("bulkOrCut" in data && data.bulkOrCut != null) {
+    p.bulkOrCut = String(data.bulkOrCut);
+  }
+  return p;
 }
 
 function activityFactor(exp: string) {
@@ -116,7 +131,8 @@ function computeGoalsFromProfile(p: Profile) {
 
 useHead({ title: "プロフィール" });
 
-const profile = reactive<Profile>(loadProfile());
+const profileFirestore = useProfileFirestore();
+const profile = reactive<Profile>({ ...DEFAULT_PROFILE });
 const saveHint = ref(false);
 let saveHintTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -148,7 +164,7 @@ function renderGoalOutputs(g: ReturnType<typeof computeGoalsFromProfile>) {
   goalFiberOut.value = formatGoalOut(g.goalFiber);
 }
 
-function applyComputedGoals(showHint: boolean) {
+async function applyComputedGoals(showHint: boolean) {
   const g = computeGoalsFromProfile(profile);
   Object.assign(profile, {
     goalCalories: g.goalCalories,
@@ -157,31 +173,33 @@ function applyComputedGoals(showHint: boolean) {
     goalCarbs: g.goalCarbs,
     goalFiber: g.goalFiber,
   });
-  saveProfile({ ...profile });
+  await profileFirestore.merge({ ...profile } as Record<string, unknown>);
   renderGoalOutputs(g);
   if (showHint) showSaved();
 }
 
-function patchProfile(patch: Partial<Profile>) {
+async function patchProfile(patch: Partial<Profile>) {
   Object.assign(profile, patch);
-  applyComputedGoals(true);
+  await applyComputedGoals(true);
 }
 
 function onNumberInput(key: keyof Profile, raw: string) {
   if (raw === "") {
-    patchProfile({ [key]: "" } as Partial<Profile>);
+    void patchProfile({ [key]: "" } as Partial<Profile>);
     return;
   }
   const num = Number(raw);
-  patchProfile({ [key]: Number.isFinite(num) ? num : "" } as Partial<Profile>);
+  void patchProfile({
+    [key]: Number.isFinite(num) ? num : "",
+  } as Partial<Profile>);
 }
 
 function onSelectChange(key: keyof Profile, v: string) {
-  patchProfile({ [key]: v } as Partial<Profile>);
+  void patchProfile({ [key]: v } as Partial<Profile>);
 }
 
 function onBulkCutChange(v: string) {
-  patchProfile({ bulkOrCut: v });
+  void patchProfile({ bulkOrCut: v });
 }
 
 function inputVal(e: Event) {
@@ -192,8 +210,10 @@ function selectVal(e: Event) {
   return (e.target as HTMLSelectElement).value;
 }
 
-onMounted(() => {
-  applyComputedGoals(false);
+onMounted(async () => {
+  const data = await profileFirestore.load();
+  Object.assign(profile, profileFromServer(data));
+  await applyComputedGoals(false);
 });
 </script>
 

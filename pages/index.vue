@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const STORAGE_KEY = "kintore-daily-v1";
+const { getDay, mergeDay } = useDailyFirestore();
 
 const GOAL_DEFS = [
   { key: "weight", label: "体重", unit: "kg", color: "var(--c-weight)", step: "0.1" },
@@ -53,27 +53,9 @@ function formatHeaderDate(d: Date) {
   }).format(d);
 }
 
-function loadState() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { entries: {} as Record<string, Record<string, unknown>> };
-    const parsed = JSON.parse(raw) as { entries?: Record<string, Record<string, unknown>> };
-    return {
-      entries:
-        parsed.entries && typeof parsed.entries === "object" ? parsed.entries : {},
-    };
-  } catch {
-    return { entries: {} as Record<string, Record<string, unknown>> };
-  }
-}
-
-function saveState(state: { entries: Record<string, Record<string, unknown>> }) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-}
-
 useHead({ title: "コンディションレコード" });
 
-const state = reactive(loadState());
+const dayData = ref<Record<string, unknown>>({});
 const currentDate = ref(new Date());
 currentDate.value.setHours(12, 0, 0, 0);
 
@@ -91,21 +73,25 @@ function showSaved() {
   }, 1200);
 }
 
-function getEntry(key: string) {
-  return state.entries[key] || {};
+async function loadDayForCurrentDate() {
+  const key = ymd(currentDate.value);
+  dayData.value = await getDay(key);
 }
 
-function setEntry(key: string, patch: Record<string, unknown>) {
-  const prev = state.entries[key] || {};
-  state.entries[key] = { ...prev, ...patch };
-  saveState(state);
+watch(currentDate, () => {
+  loadDayForCurrentDate();
+});
+
+async function setEntry(key: string, patch: Record<string, unknown>) {
+  dayData.value = { ...dayData.value, ...patch };
+  await mergeDay(key, patch);
   showSaved();
 }
 
 const dateDisplay = computed(() => formatHeaderDate(currentDate.value));
 const currentKey = computed(() => ymd(currentDate.value));
 
-const entry = computed(() => getEntry(currentKey.value));
+const entry = computed(() => dayData.value);
 
 function formatGoalNumber(n: number | undefined) {
   if (n === undefined) return "—";
@@ -196,13 +182,13 @@ function goDay(delta: number) {
 
 function onNumberChange(keyField: string, raw: string) {
   const num = raw === "" ? "" : Number(raw);
-  setEntry(currentKey.value, {
+  void setEntry(currentKey.value, {
     [keyField]: Number.isFinite(num as number) ? num : "",
   });
 }
 
 function onConditionChange(val: string) {
-  setEntry(currentKey.value, { condition: val === "none" ? "" : val });
+  void setEntry(currentKey.value, { condition: val === "none" ? "" : val });
 }
 
 function onConditionRadio(e: Event) {
@@ -211,6 +197,7 @@ function onConditionRadio(e: Event) {
 }
 
 onMounted(() => {
+  loadDayForCurrentDate();
   const el = calendarDialog.value;
   if (!el) return;
   el.addEventListener("close", () => {
@@ -295,32 +282,32 @@ onMounted(() => {
               </span>
               <div class="segmented condition-seg" role="group" aria-label="体調">
                 <input
-                  id="cond-none"
+                  :id="'cond-none-' + currentKey"
                   type="radio"
-                  name="condition"
+                  :name="'condition-' + currentKey"
                   value="none"
                   :checked="!entry.condition"
                   @change="onConditionRadio"
                 />
-                <label for="cond-none">—</label>
+                <label :for="'cond-none-' + currentKey">—</label>
                 <input
-                  id="cond-normal"
+                  :id="'cond-normal-' + currentKey"
                   type="radio"
-                  name="condition"
+                  :name="'condition-' + currentKey"
                   value="普通"
                   :checked="entry.condition === '普通'"
                   @change="onConditionRadio"
                 />
-                <label for="cond-normal">普通</label>
+                <label :for="'cond-normal-' + currentKey">普通</label>
                 <input
-                  id="cond-poor"
+                  :id="'cond-poor-' + currentKey"
                   type="radio"
-                  name="condition"
+                  :name="'condition-' + currentKey"
                   value="不調"
                   :checked="entry.condition === '不調'"
                   @change="onConditionRadio"
                 />
-                <label for="cond-poor">不調</label>
+                <label :for="'cond-poor-' + currentKey">不調</label>
               </div>
             </div>
             <div v-else class="field" :data-daily="d.key">

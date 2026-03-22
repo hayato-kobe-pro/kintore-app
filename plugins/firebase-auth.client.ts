@@ -6,6 +6,7 @@ import {
   createUserWithEmailAndPassword,
   signOut,
 } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
 
 export default defineNuxtPlugin(() => {
   const config = useRuntimeConfig().public;
@@ -21,6 +22,7 @@ export default defineNuxtPlugin(() => {
     return {
       provide: {
         firebaseAuth: null,
+        firestoreDb: null,
       },
     };
   }
@@ -37,6 +39,7 @@ export default defineNuxtPlugin(() => {
   const app: FirebaseApp =
     getApps().length > 0 ? getApps()[0]! : initializeApp(firebaseConfig);
   const auth = getAuth(app);
+  const db = getFirestore(app);
 
   let resolveReady!: () => void;
   const whenReady = new Promise<void>((r) => {
@@ -68,6 +71,7 @@ export default defineNuxtPlugin(() => {
           return signOut(auth);
         },
       },
+      firestoreDb: db,
     },
   };
 });

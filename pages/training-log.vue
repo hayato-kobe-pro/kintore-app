@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { KintoreExerciseCatalog } from "~/utils/exerciseCatalog";
 
-const STORAGE_KEY = "kintore-training-v1";
 const EXERCISE_OPTIONS = KintoreExerciseCatalog.names();
 
 const EXERCISE_CHIP_STYLES = [
@@ -12,26 +11,39 @@ const EXERCISE_CHIP_STYLES = [
   { bg: "#fce8e6", color: "#c5221f" },
 ];
 
-function loadEntries() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw) as {
-      entries?: Record<string, unknown[]>;
-    };
-    return parsed.entries && typeof parsed.entries === "object"
-      ? parsed.entries
-      : {};
-  } catch {
-    return {};
-  }
-}
-
 function ymd(d: Date) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
+}
+
+/** カレンダーグリッドに表示される全日付の [startYmd, endYmd]（Firestore range 用） */
+function monthGridYmdRange(viewMonth: Date): { startYmd: string; endYmd: string } {
+  const y = viewMonth.getFullYear();
+  const m = viewMonth.getMonth();
+  const firstDow = new Date(y, m, 1).getDay();
+  const dim = new Date(y, m + 1, 0).getDate();
+  const prevDim = new Date(y, m, 0).getDate();
+
+  let start: Date;
+  if (firstDow > 0) {
+    const startDay = prevDim - firstDow + 1;
+    start = new Date(y, m - 1, startDay);
+  } else {
+    start = new Date(y, m, 1);
+  }
+  start.setHours(12, 0, 0, 0);
+
+  const rem = (firstDow + dim) % 7;
+  const pad = rem === 0 ? 0 : 7 - rem;
+  const end =
+    pad === 0
+      ? new Date(y, m, dim)
+      : new Date(y, m + 1, pad);
+  end.setHours(12, 0, 0, 0);
+
+  return { startYmd: ymd(start), endYmd: ymd(end) };
 }
 
 function normalizeExercise(v: unknown) {
@@ -76,11 +88,14 @@ function chipStyle(name: string) {
 
 useHead({ title: "トレーニングログ" });
 
+const trainingFs = useTrainingFirestore();
+
 const viewMonth = ref(new Date());
 viewMonth.value.setDate(1);
 viewMonth.value.setHours(12, 0, 0, 0);
 
 const tick = ref(0);
+const entries = ref<Record<string, unknown[]>>({});
 
 const monthTitle = computed(() =>
   new Intl.DateTimeFormat("ja-JP", {
@@ -99,7 +114,7 @@ type Cell = {
 
 const cells = computed((): Cell[] => {
   tick.value;
-  const entries = loadEntries() as Record<string, unknown[]>;
+  const e = entries.value;
   const y = viewMonth.value.getFullYear();
   const m = viewMonth.value.getMonth();
   const firstDow = new Date(y, m, 1).getDay();
@@ -121,7 +136,7 @@ const cells = computed((): Cell[] => {
       dayNum: day,
       muted: true,
       isToday: ymd(d) === todayKey,
-      chips: topDistinctExercises(ymd(d), entries),
+      chips: topDistinctExercises(ymd(d), e),
     });
   }
 
@@ -134,7 +149,7 @@ const cells = computed((): Cell[] => {
       dayNum: day,
       muted: false,
       isToday: key === todayKey,
-      chips: topDistinctExercises(key, entries),
+      chips: topDistinctExercises(key, e),
     });
   }
 
@@ -150,12 +165,18 @@ const cells = computed((): Cell[] => {
       dayNum: day,
       muted: true,
       isToday: key === todayKey,
-      chips: topDistinctExercises(key, entries),
+      chips: topDistinctExercises(key, e),
     });
   }
 
   return parts;
 });
+
+async function loadVisibleRange() {
+  const { startYmd, endYmd } = monthGridYmdRange(viewMonth.value);
+  entries.value = await trainingFs.fetchRange(startYmd, endYmd);
+  tick.value += 1;
+}
 
 function shiftMonth(delta: number) {
   const y = viewMonth.value.getFullYear();
@@ -164,32 +185,27 @@ function shiftMonth(delta: number) {
   viewMonth.value.setHours(12, 0, 0, 0);
 }
 
-function bump() {
-  tick.value += 1;
-}
-
-function onStorage(e: StorageEvent) {
-  if (e.key === STORAGE_KEY) bump();
-}
+watch(viewMonth, () => {
+  void loadVisibleRange();
+});
 
 onMounted(() => {
-  window.addEventListener("storage", onStorage);
+  void loadVisibleRange();
   window.addEventListener("pageshow", onPageShow);
   document.addEventListener("visibilitychange", onVisibility);
 });
 
 onUnmounted(() => {
-  window.removeEventListener("storage", onStorage);
   window.removeEventListener("pageshow", onPageShow);
   document.removeEventListener("visibilitychange", onVisibility);
 });
 
 function onPageShow(e: PageTransitionEvent) {
-  if (e.persisted) bump();
+  if (e.persisted) void loadVisibleRange();
 }
 
 function onVisibility() {
-  if (document.visibilityState === "visible") bump();
+  if (document.visibilityState === "visible") void loadVisibleRange();
 }
 </script>
 

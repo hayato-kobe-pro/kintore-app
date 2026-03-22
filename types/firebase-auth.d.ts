@@ -1,4 +1,5 @@
 import type { Auth } from "firebase/auth";
+import type { Firestore } from "firebase/firestore";
 
 export type FirebaseAuthPlugin = {
   auth: Auth;
@@ -11,6 +12,7 @@ export type FirebaseAuthPlugin = {
 declare module "#app" {
   interface NuxtApp {
     $firebaseAuth: FirebaseAuthPlugin | null;
+    $firestoreDb: Firestore | null;
   }
 }
 

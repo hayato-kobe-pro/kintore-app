@@ -1,30 +1,9 @@
 <script setup lang="ts">
-const STORAGE_KEY = "kintore-vision-v1";
 const MAX_LEN = 300;
 
-const DEFAULT_STATE = {
-  idealBody: "",
-  purpose: "",
-  achievementGoals: "",
-};
-
-function loadState() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { ...DEFAULT_STATE };
-    const parsed = JSON.parse(raw) as Record<string, string>;
-    if (!parsed || typeof parsed !== "object") return { ...DEFAULT_STATE };
-    return { ...DEFAULT_STATE, ...parsed };
-  } catch {
-    return { ...DEFAULT_STATE };
-  }
-}
-
-function saveState(data: typeof DEFAULT_STATE) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-}
-
 useHead({ title: "ビジョン" });
+
+const visionFs = useVisionFirestore();
 
 const idealBody = ref("");
 const purpose = ref("");
@@ -46,29 +25,28 @@ const goalsCount = computed(
   () => `${achievementGoals.value.length} / ${MAX_LEN}`,
 );
 
-function persistAll() {
-  saveState({
+function visionPayload() {
+  return {
     idealBody: idealBody.value,
     purpose: purpose.value.slice(0, MAX_LEN),
     achievementGoals: achievementGoals.value.slice(0, MAX_LEN),
-  });
+  };
+}
+
+async function persistAll() {
+  await visionFs.merge(visionPayload());
   showSaved();
 }
 
 function debouncedPersist() {
   if (debounceTimer) clearTimeout(debounceTimer);
   debounceTimer = setTimeout(() => {
-    saveState({
-      idealBody: idealBody.value,
-      purpose: purpose.value.slice(0, MAX_LEN),
-      achievementGoals: achievementGoals.value.slice(0, MAX_LEN),
-    });
-    showSaved();
+    void visionFs.merge(visionPayload()).then(() => showSaved());
   }, 400);
 }
 
 function onIdealChange() {
-  persistAll();
+  void persistAll();
 }
 
 function onPurposeInput() {
@@ -85,11 +63,11 @@ function onGoalsInput() {
   debouncedPersist();
 }
 
-onMounted(() => {
-  const s = loadState();
-  idealBody.value = s.idealBody || "";
-  purpose.value = s.purpose || "";
-  achievementGoals.value = s.achievementGoals || "";
+onMounted(async () => {
+  const s = await visionFs.load();
+  idealBody.value = String(s.idealBody ?? "");
+  purpose.value = String(s.purpose ?? "");
+  achievementGoals.value = String(s.achievementGoals ?? "");
 });
 </script>
 
