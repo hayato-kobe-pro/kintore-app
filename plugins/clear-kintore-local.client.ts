@@ -5,6 +5,7 @@ const LEGACY_KEYS = [
   "kintore-sessions-v1",
   "kintore-profile-v1",
   "kintore-vision-v1",
+  "kintore-body-log-v1",
 ];
 
 export default defineNuxtPlugin(() => {

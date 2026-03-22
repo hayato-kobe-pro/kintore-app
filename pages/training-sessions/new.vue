@@ -51,4 +51,6 @@ async function onSubmit(e: Event) {
   </main>
 </template>
 
-<style src="~/assets/css/sessions.css"></style>
+<style>
+@import "~/assets/css/sessions.css";
+</style>

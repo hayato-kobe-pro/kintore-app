@@ -67,20 +67,24 @@ npx serve .output/public
 | `users/{uid}/settings/profile` | プロフィール・目標（身長・体重・算出 PFC など） |
 | `users/{uid}/settings/vision` | ビジョン文面 |
 | `users/{uid}/settings/preferences` | コンディションログの表示期間（1週間／1ヶ月／期間指定と日付） |
+| `users/{uid}/bodyLogs/{entryId}` | ボディログ（日付・各スロット画像の **Storage ダウンロード URL**） |
+
+**Firebase Storage**（ボディログ写真）: `users/{uid}/bodyLogs/{entryId}/{front|back|side|extra}`。ルールは `storage.rules`。デプロイ例: `firebase deploy --only storage`
 
 ホームの「目標」表示とグラフの目標線は **プロフィール**の `goal*` を参照します（プロフィール画面で保存した値が使われます）。
 
 1. [Firebase Console](https://console.firebase.google.com/) → プロジェクト → **Authentication** → **Sign-in method** で **メール／パスワード** を有効化
-2. **Firestore** を作成し、ルートの `firestore.rules` をデプロイ（`firebase deploy --only firestore:rules` など）。ルール例はリポジトリの `firestore.rules`（本人の `users/{uid}/**` のみ読み書き可）
-3. プロジェクト設定 → 全般 → **マイアプリ** の Web 設定から値をコピー
-4. `nuxt-app` に `.env` を作成（`.env.example` を参考）:
+2. **Firestore** を作成し、`firestore.rules` をデプロイ（`firebase deploy --only firestore:rules` など）。ルール例はリポジトリの `firestore.rules`（本人の `users/{uid}/**` のみ読み書き可）
+3. **Storage** を有効化し、`storage.rules` をデプロイ（`firebase deploy --only storage`）。ボディログの写真アップロードに必要です。
+4. プロジェクト設定 → 全般 → **マイアプリ** の Web 設定から値をコピー（**storageBucket** を含む）
+5. `nuxt-app` に `.env` を作成（`.env.example` を参考）:
 
 ```bash
 cp .env.example .env
 # 各キーを編集
 ```
 
-5. `npm run dev` を再起動
+6. `npm run dev` を再起動
 
 ログイン後、ドロワーメニュー下部にメールアドレスと **ログアウト** が表示されます。
 
@@ -94,6 +98,7 @@ cp .env.example .env
 - `.env` を変えたら **`npm run dev` を再起動**してください。
 - **`npm run build` の静的出力**（`.output/public`）を配信している場合、`NUXT_PUBLIC_FIREBASE_*` は **ビルド実行時** にバンドルへ埋め込まれます。空のまま `npm run build` すると、認証以外が動かない／保存できないことがあります。
 - Firebase Console で **Firestore Database を作成**済みか確認してください（未作成だと書き込みに失敗します）。
+- **Storage** を有効化し、`storage.rules` をデプロイ済みか確認してください（ボディログの写真で `storage/unauthorized` になることがあります）。
 - **セキュリティルール**をデプロイし、ログインユーザーが自分の `users/{uid}/**` に書けるか確認してください。拒否されると画面上に赤い説明が出ます（開発者ツールの Console にも `permission-denied` が出ます）。
 - Console で開いている **プロジェクト ID** と、`NUXT_PUBLIC_FIREBASE_PROJECT_ID` が一致しているか確認してください。
 

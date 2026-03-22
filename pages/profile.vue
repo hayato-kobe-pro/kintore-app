@@ -153,40 +153,10 @@ useHead({ title: "プロフィール" });
 const { user } = useFirebaseAuth();
 const profileFirestore = useProfileFirestore();
 const profile = reactive<Profile>({ ...DEFAULT_PROFILE });
-const saveHint = ref(false);
 const saveError = ref<string | null>(null);
 const loadError = ref<string | null>(null);
-let saveHintTimer: ReturnType<typeof setTimeout> | null = null;
 
-function showSaved() {
-  saveHint.value = true;
-  if (saveHintTimer) clearTimeout(saveHintTimer);
-  saveHintTimer = setTimeout(() => {
-    saveHint.value = false;
-  }, 1200);
-}
-
-function formatGoalOut(v: number | "") {
-  if (v === "" || v == null) return "—";
-  const n = Number(v);
-  return Number.isFinite(n) ? String(Math.round(n)) : "—";
-}
-
-const goalCaloriesOut = ref("—");
-const goalProteinOut = ref("—");
-const goalFatOut = ref("—");
-const goalCarbsOut = ref("—");
-const goalFiberOut = ref("—");
-
-function renderGoalOutputs(g: ReturnType<typeof computeGoalsFromProfile>) {
-  goalCaloriesOut.value = formatGoalOut(g.goalCalories);
-  goalProteinOut.value = formatGoalOut(g.goalProtein);
-  goalFatOut.value = formatGoalOut(g.goalFat);
-  goalCarbsOut.value = formatGoalOut(g.goalCarbs);
-  goalFiberOut.value = formatGoalOut(g.goalFiber);
-}
-
-async function applyComputedGoals(showHint: boolean) {
+async function applyComputedGoals() {
   const g = computeGoalsFromProfile(profile);
   Object.assign(profile, {
     goalCalories: g.goalCalories,
@@ -195,29 +165,75 @@ async function applyComputedGoals(showHint: boolean) {
     goalCarbs: g.goalCarbs,
     goalFiber: g.goalFiber,
   });
-  renderGoalOutputs(g);
   const r = await profileFirestore.merge(profileToFirestore(profile));
   if (!r.ok) {
     saveError.value = r.message;
-    if (showHint) saveHint.value = false;
     return;
   }
   saveError.value = null;
-  if (showHint) showSaved();
 }
 
+async function persistProfileMerge() {
+  const r = await profileFirestore.merge(profileToFirestore(profile));
+  if (!r.ok) {
+    saveError.value = r.message;
+    return;
+  }
+  saveError.value = null;
+}
+
+/** 身長・体重など変更時: 目標カロリー・PFC を式で上書きして保存 */
 async function patchProfile(patch: Partial<Profile>) {
   Object.assign(profile, patch);
-  await applyComputedGoals(true);
+  await applyComputedGoals();
 }
 
-function onNumberInput(key: keyof Profile, raw: string) {
+/** 目標体重・睡眠・カロリー/PFC 手入力: 再計算せず保存のみ */
+async function patchGoalsManual(patch: Partial<Profile>) {
+  Object.assign(profile, patch);
+  await persistProfileMerge();
+}
+
+function onBasicNumberInput(
+  key: "height" | "weight" | "bodyFat",
+  raw: string,
+) {
   if (raw === "") {
     void patchProfile({ [key]: "" } as Partial<Profile>);
     return;
   }
   const num = Number(raw);
   void patchProfile({
+    [key]: Number.isFinite(num) ? num : "",
+  } as Partial<Profile>);
+}
+
+function onGoalWeightSleepInput(key: "goalWeight" | "goalSleep", raw: string) {
+  if (raw === "") {
+    void patchGoalsManual({ [key]: "" } as Partial<Profile>);
+    return;
+  }
+  const num = Number(raw);
+  void patchGoalsManual({
+    [key]: Number.isFinite(num) ? num : "",
+  } as Partial<Profile>);
+}
+
+function onGoalMacroInput(
+  key:
+    | "goalCalories"
+    | "goalProtein"
+    | "goalFat"
+    | "goalCarbs"
+    | "goalFiber",
+  raw: string,
+) {
+  if (raw === "") {
+    void patchGoalsManual({ [key]: "" } as Partial<Profile>);
+    return;
+  }
+  const num = Number(raw);
+  void patchGoalsManual({
     [key]: Number.isFinite(num) ? num : "",
   } as Partial<Profile>);
 }
@@ -238,12 +254,26 @@ function selectVal(e: Event) {
   return (e.target as HTMLSelectElement).value;
 }
 
+function shouldBackfillComputedGoals(p: Profile) {
+  const hasAnyMacro =
+    (p.goalCalories !== "" && p.goalCalories != null) ||
+    (p.goalProtein !== "" && p.goalProtein != null) ||
+    (p.goalFat !== "" && p.goalFat != null) ||
+    (p.goalCarbs !== "" && p.goalCarbs != null) ||
+    (p.goalFiber !== "" && p.goalFiber != null);
+  if (hasAnyMacro) return false;
+  const w = Number(p.weight);
+  return Number.isFinite(w) && w > 0;
+}
+
 async function hydrateProfileFromCloud() {
   loadError.value = null;
   try {
     const data = await profileFirestore.load();
     Object.assign(profile, profileFromServer(data));
-    await applyComputedGoals(false);
+    if (shouldBackfillComputedGoals(profile)) {
+      await applyComputedGoals();
+    }
   } catch (e) {
     loadError.value =
       e instanceof Error ? e.message : "プロフィールの読み込みに失敗しました";
@@ -293,7 +323,7 @@ watch(
               min="0"
               :value="profile.height === '' ? '' : String(profile.height)"
               placeholder="—"
-              @change="onNumberInput('height', inputVal($event))"
+              @change="onBasicNumberInput('height', inputVal($event))"
             />
           </div>
           <div class="field">
@@ -308,7 +338,7 @@ watch(
               min="0"
               :value="profile.weight === '' ? '' : String(profile.weight)"
               placeholder="—"
-              @change="onNumberInput('weight', inputVal($event))"
+              @change="onBasicNumberInput('weight', inputVal($event))"
             />
           </div>
           <div class="field">
@@ -323,7 +353,7 @@ watch(
               min="0"
               :value="profile.bodyFat === '' ? '' : String(profile.bodyFat)"
               placeholder="—"
-              @change="onNumberInput('bodyFat', inputVal($event))"
+              @change="onBasicNumberInput('bodyFat', inputVal($event))"
             />
           </div>
           <div class="field">
@@ -393,7 +423,7 @@ watch(
       <section class="card profile-card" aria-labelledby="profile-goals-heading">
         <h2 id="profile-goals-heading" class="profile-section-title">目標</h2>
         <p class="profile-section-note">
-          目標体重・目標睡眠時間は手入力です。カロリー・PFCは基本情報から自動計算されます（体重が未入力のときは — ）。
+          目標カロリー・PFCは基本情報変更時に自動で再計算されます。表示後はいずれも手で修正できます（再計算で上書きされます）。
         </p>
         <div class="fields">
           <div class="field">
@@ -408,7 +438,7 @@ watch(
               min="0"
               :value="profile.goalWeight === '' ? '' : String(profile.goalWeight)"
               placeholder="—"
-              @change="onNumberInput('goalWeight', inputVal($event))"
+              @change="onGoalWeightSleepInput('goalWeight', inputVal($event))"
             />
           </div>
           <div class="field">
@@ -424,7 +454,7 @@ watch(
               max="24"
               :value="profile.goalSleep === '' ? '' : String(profile.goalSleep)"
               placeholder="—"
-              @change="onNumberInput('goalSleep', inputVal($event))"
+              @change="onGoalWeightSleepInput('goalSleep', inputVal($event))"
             />
           </div>
           <div class="field">
@@ -432,50 +462,89 @@ watch(
               <span class="field-label-dot" style="background: var(--c-cal)" />
               目標カロリー<span class="unit">（kcal）</span>
             </span>
-            <div id="profile-goal-calories" class="profile-computed" aria-live="polite">
-              {{ goalCaloriesOut }}
-            </div>
+            <input
+              id="profile-goal-calories"
+              type="number"
+              inputmode="numeric"
+              step="1"
+              min="0"
+              aria-label="目標カロリー（kcal）"
+              :value="profile.goalCalories === '' ? '' : String(profile.goalCalories)"
+              placeholder="—"
+              @change="onGoalMacroInput('goalCalories', inputVal($event))"
+            />
           </div>
           <div class="field">
             <span class="field-label">
               <span class="field-label-dot" style="background: var(--c-protein)" />
               タンパク質<span class="unit">（g）</span>
             </span>
-            <div id="profile-goal-protein" class="profile-computed" aria-live="polite">
-              {{ goalProteinOut }}
-            </div>
+            <input
+              id="profile-goal-protein"
+              type="number"
+              inputmode="decimal"
+              step="1"
+              min="0"
+              aria-label="目標タンパク質（g）"
+              :value="profile.goalProtein === '' ? '' : String(profile.goalProtein)"
+              placeholder="—"
+              @change="onGoalMacroInput('goalProtein', inputVal($event))"
+            />
           </div>
           <div class="field">
             <span class="field-label">
               <span class="field-label-dot" style="background: var(--c-fat)" />
               脂質<span class="unit">（g）</span>
             </span>
-            <div id="profile-goal-fat" class="profile-computed" aria-live="polite">
-              {{ goalFatOut }}
-            </div>
+            <input
+              id="profile-goal-fat"
+              type="number"
+              inputmode="decimal"
+              step="1"
+              min="0"
+              aria-label="目標脂質（g）"
+              :value="profile.goalFat === '' ? '' : String(profile.goalFat)"
+              placeholder="—"
+              @change="onGoalMacroInput('goalFat', inputVal($event))"
+            />
           </div>
           <div class="field">
             <span class="field-label">
               <span class="field-label-dot" style="background: var(--c-carb)" />
               炭水化物<span class="unit">（g）</span>
             </span>
-            <div id="profile-goal-carbs" class="profile-computed" aria-live="polite">
-              {{ goalCarbsOut }}
-            </div>
+            <input
+              id="profile-goal-carbs"
+              type="number"
+              inputmode="decimal"
+              step="1"
+              min="0"
+              aria-label="目標炭水化物（g）"
+              :value="profile.goalCarbs === '' ? '' : String(profile.goalCarbs)"
+              placeholder="—"
+              @change="onGoalMacroInput('goalCarbs', inputVal($event))"
+            />
           </div>
           <div class="field">
             <span class="field-label">
               <span class="field-label-dot" style="background: var(--c-fiber)" />
               食物繊維<span class="unit">（g）</span>
             </span>
-            <div id="profile-goal-fiber" class="profile-computed" aria-live="polite">
-              {{ goalFiberOut }}
-            </div>
+            <input
+              id="profile-goal-fiber"
+              type="number"
+              inputmode="decimal"
+              step="1"
+              min="0"
+              aria-label="目標食物繊維（g）"
+              :value="profile.goalFiber === '' ? '' : String(profile.goalFiber)"
+              placeholder="—"
+              @change="onGoalMacroInput('goalFiber', inputVal($event))"
+            />
           </div>
         </div>
       </section>
 
-      <p id="save-hint" class="save-hint" :hidden="!saveHint">保存しました</p>
       <p
         v-if="saveError"
         id="profile-save-error"
@@ -488,4 +557,6 @@ watch(
   </main>
 </template>
 
-<style src="~/assets/css/profile.css"></style>
+<style>
+@import "~/assets/css/profile.css";
+</style>

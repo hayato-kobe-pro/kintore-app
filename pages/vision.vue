@@ -8,18 +8,8 @@ const visionFs = useVisionFirestore();
 const idealBody = ref("");
 const purpose = ref("");
 const achievementGoals = ref("");
-const saveHint = ref(false);
 const saveError = ref<string | null>(null);
-let saveHintTimer: ReturnType<typeof setTimeout> | null = null;
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-
-function showSaved() {
-  saveHint.value = true;
-  if (saveHintTimer) clearTimeout(saveHintTimer);
-  saveHintTimer = setTimeout(() => {
-    saveHint.value = false;
-  }, 1200);
-}
 
 const purposeCount = computed(() => `${purpose.value.length} / ${MAX_LEN}`);
 const goalsCount = computed(
@@ -38,11 +28,9 @@ async function persistAll() {
   const r = await visionFs.merge(visionPayload());
   if (!r.ok) {
     saveError.value = r.message;
-    saveHint.value = false;
     return;
   }
   saveError.value = null;
-  showSaved();
 }
 
 function debouncedPersist() {
@@ -51,11 +39,9 @@ function debouncedPersist() {
     void visionFs.merge(visionPayload()).then((r) => {
       if (!r.ok) {
         saveError.value = r.message;
-        saveHint.value = false;
         return;
       }
       saveError.value = null;
-      showSaved();
     });
   }, 400);
 }
@@ -179,11 +165,11 @@ onMounted(async () => {
           </div>
         </div>
       </section>
-
-      <p id="save-hint" class="save-hint" :hidden="!saveHint">保存しました</p>
     </form>
   </main>
 </template>
 
-<style src="~/assets/css/profile.css"></style>
-<style src="~/assets/css/vision.css"></style>
+<style>
+@import "~/assets/css/profile.css";
+@import "~/assets/css/vision.css";
+</style>

@@ -162,4 +162,6 @@ async function onSubmit() {
   </main>
 </template>
 
-<style src="~/assets/css/auth.css"></style>
+<style>
+@import "~/assets/css/auth.css";
+</style>

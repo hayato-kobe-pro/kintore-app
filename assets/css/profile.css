@@ -61,17 +61,3 @@
   outline-offset: 0;
   border-color: transparent;
 }
-
-.profile-computed {
-  padding: 11px 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg);
-  color: var(--text);
-  font-size: 1rem;
-  font-weight: 600;
-  min-height: 44px;
-  display: flex;
-  align-items: center;
-  box-sizing: border-box;
-}

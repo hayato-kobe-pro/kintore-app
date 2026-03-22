@@ -733,4 +733,6 @@ onUnmounted(() => {
   </dialog>
 </template>
 
-<style src="~/assets/css/training.css"></style>
+<style>
+@import "~/assets/css/training.css";
+</style>

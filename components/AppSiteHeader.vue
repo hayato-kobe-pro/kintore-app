@@ -24,6 +24,11 @@ const nav = [
     label: "トレーニングセッション",
     match: (p: string) => p.startsWith("/training-sessions"),
   },
+  {
+    to: "/body-log",
+    label: "ボディログ",
+    match: (p: string) => p.startsWith("/body-log"),
+  },
   { to: "/vision", label: "ビジョン", match: (p: string) => p === "/vision" },
   { to: "/profile", label: "プロフィール", match: (p: string) => p === "/profile" },
 ];

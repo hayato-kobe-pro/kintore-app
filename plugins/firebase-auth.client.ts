@@ -7,6 +7,7 @@ import {
   signOut,
 } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
 
 export default defineNuxtPlugin(() => {
   const config = useRuntimeConfig().public;
@@ -23,6 +24,7 @@ export default defineNuxtPlugin(() => {
       provide: {
         firebaseAuth: null,
         firestoreDb: null,
+        firebaseStorage: null,
       },
     };
   }
@@ -40,6 +42,7 @@ export default defineNuxtPlugin(() => {
     getApps().length > 0 ? getApps()[0]! : initializeApp(firebaseConfig);
   const auth = getAuth(app);
   const db = getFirestore(app);
+  const storage = getStorage(app);
 
   let resolveReady!: () => void;
   const whenReady = new Promise<void>((r) => {
@@ -72,6 +75,7 @@ export default defineNuxtPlugin(() => {
         },
       },
       firestoreDb: db,
+      firebaseStorage: storage,
     },
   };
 });

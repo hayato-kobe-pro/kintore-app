@@ -413,4 +413,6 @@ function onVisibility() {
   </dialog>
 </template>
 
-<style src="~/assets/css/training-log.css"></style>
+<style>
+@import "~/assets/css/training-log.css";
+</style>
