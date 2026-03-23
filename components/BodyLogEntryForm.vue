@@ -389,26 +389,26 @@ async function confirmAndDeleteEntry() {
             : "保存して一覧へ"
       }}
     </button>
-  </form>
 
-  <div v-if="isEdit" class="body-log-edit-delete">
-    <p class="body-log-edit-delete__note">
-      この記録を削除すると、写真とデータは元に戻せません。
-    </p>
-    <p
-      v-if="deleteError"
-      class="body-log-save-error body-log-edit-delete__error"
-      role="alert"
-    >
-      {{ deleteError }}
-    </p>
-    <button
-      type="button"
-      class="body-log-edit-delete__btn"
-      :disabled="saving || deleting"
-      @click="confirmAndDeleteEntry"
-    >
-      {{ deleting ? "削除中…" : "この記録を削除" }}
-    </button>
-  </div>
+    <div v-if="isEdit" class="body-log-edit-delete">
+      <p class="body-log-edit-delete__note">
+        この記録を削除すると、写真とデータは元に戻せません。
+      </p>
+      <p
+        v-if="deleteError"
+        class="body-log-save-error body-log-edit-delete__error"
+        role="alert"
+      >
+        {{ deleteError }}
+      </p>
+      <button
+        type="button"
+        class="body-log-edit-delete__btn"
+        :disabled="saving || deleting"
+        @click="confirmAndDeleteEntry"
+      >
+        {{ deleting ? "削除中…" : "この記録を削除" }}
+      </button>
+    </div>
+  </form>
 </template>
