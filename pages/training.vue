@@ -658,6 +658,10 @@ onUnmounted(() => {
                 </li>
               </ul>
             </div>
+            <span
+              v-if="normalizeExercise(s.exercise)"
+              class="bodypart-tag training-set__bodypart"
+            >{{ exerciseCatalog.bodyPart(s.exercise) }}</span>
             <div class="training-set__guide" aria-live="polite">
               <span
                 v-if="!normalizeExercise(s.exercise)"

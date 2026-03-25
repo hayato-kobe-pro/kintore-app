@@ -1,4 +1,5 @@
 @import "./exercise-combo.css";
+@import "./bodypart-tag.css";
 
 .sessions-back-wrap {
   margin: 0 0 12px;
@@ -75,6 +76,14 @@
 .session-view-exercise-item:last-child {
   border-bottom: none;
   padding-bottom: 0;
+}
+
+.session-view-exercise-head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
 }
 
 .session-view-exercise-name {

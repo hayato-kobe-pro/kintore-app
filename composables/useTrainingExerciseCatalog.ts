@@ -1,9 +1,12 @@
 import { collection, getDocs } from "firebase/firestore";
+import { bodyPartLabelForExerciseName } from "~/utils/trainingExerciseBodyParts";
 
 export type TrainingExerciseRow = {
   id: string;
   name: string;
   guideUrl: string;
+  /** 表示用部位（Firestore の bodyPart があれば優先、なければマスタ） */
+  bodyPart: string;
   sortOrder: number;
 };
 
@@ -38,16 +41,21 @@ export function useTrainingExerciseCatalog() {
         const data = d.data() as {
           name?: unknown;
           guideUrl?: unknown;
+          bodyPart?: unknown;
           sortOrder?: unknown;
         };
         const sortOrder =
           typeof data.sortOrder === "number" && Number.isFinite(data.sortOrder)
             ? data.sortOrder
             : 0;
+        const name = String(data.name ?? "").trim();
+        const fromFs = String(data.bodyPart ?? "").trim();
+        const bodyPart = fromFs || bodyPartLabelForExerciseName(name);
         return {
           id: d.id,
-          name: String(data.name ?? "").trim(),
+          name,
           guideUrl: String(data.guideUrl ?? "").trim(),
+          bodyPart,
           sortOrder,
         };
       });
@@ -85,6 +93,14 @@ export function useTrainingExerciseCatalog() {
     return row?.guideUrl ?? "";
   }
 
+  /** 種目名に対応する部位（未選択時は空） */
+  function bodyPart(exerciseName: string): string {
+    const n = String(exerciseName || "").trim();
+    if (!n) return "";
+    const row = entries.value.find((e) => e.name === n);
+    return row?.bodyPart ?? bodyPartLabelForExerciseName(n);
+  }
+
   function isValidName(name: string): boolean {
     const n = String(name || "").trim();
     return n !== "" && nameSet.value.has(n);
@@ -98,6 +114,7 @@ export function useTrainingExerciseCatalog() {
     names,
     nameSet,
     guideUrl,
+    bodyPart,
     isValidName,
   };
 }

@@ -70,7 +70,7 @@ function draw() {
               const pct =
                 total > 0 ? ((v / total) * 100).toFixed(1) : "0";
               const label = ctx.label ?? "";
-              return `${label}: ${v}回（${pct}%）`;
+              return `${label}: ${v}セット（${pct}%）`;
             },
           },
         },
@@ -94,9 +94,9 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="admin-training-pie">
-    <h3 class="admin-training-pie__title">種目別の割合（セット数）</h3>
+    <h3 class="admin-training-pie__title">部位別の割合（セット数）</h3>
     <div class="admin-training-pie__canvas-wrap">
-      <canvas ref="canvasRef" aria-label="種目別セット数の円グラフ" />
+      <canvas ref="canvasRef" aria-label="部位別セット数の円グラフ" />
     </div>
   </div>
 </template>

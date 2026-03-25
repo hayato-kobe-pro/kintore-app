@@ -1,0 +1,32 @@
+/**
+ * ユーザー向け：トレーニング種目の「部位」表示（タグ／ピル）
+ */
+.bodypart-tag {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  width: fit-content;
+  max-width: 100%;
+  padding: 4px 11px;
+  font-size: calc(0.6875rem + 3px);
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: 0.03em;
+  color: #1d4ed8;
+  background: rgba(37, 99, 235, 0.1);
+  border: 1px solid rgba(37, 99, 235, 0.28);
+  border-radius: 999px;
+  box-sizing: border-box;
+}
+
+.training-set__bodypart.bodypart-tag {
+  margin: 8px 0 0;
+}
+
+.session-view-bodypart.bodypart-tag {
+  margin: 0;
+}
+
+.session-exercise-bodypart.bodypart-tag {
+  margin: 8px 0 0;
+}

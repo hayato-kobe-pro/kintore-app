@@ -1,3 +1,5 @@
+import { bodyPartLabelForExerciseName } from "~/utils/trainingExerciseBodyParts";
+
 /** トレーニング1行としてカウントするか（reps が有効な数値） */
 export function hasTrainingSetLogged(row: unknown): boolean {
   if (!row || typeof row !== "object") return false;
@@ -35,6 +37,39 @@ export function countTrainingSetsInMonth(
     }
   }
   return total;
+}
+
+/** 月内の「reps ありセット」を部位ごとに集計（件数降順）。種目空欄は「種目未入力」。 */
+export function bodyPartSetCountsForMonth(
+  byDay: Record<string, unknown[]>,
+  year: number,
+  month: number,
+): { label: string; count: number }[] {
+  const prefix = `${year}-${String(month).padStart(2, "0")}-`;
+  const counts = new Map<string, number>();
+  for (const [dateYmd, sets] of Object.entries(byDay)) {
+    if (!dateYmd.startsWith(prefix)) continue;
+    if (!Array.isArray(sets)) continue;
+    for (const row of sets) {
+      if (!hasTrainingSetLogged(row)) continue;
+      let exerciseName = "";
+      if (row && typeof row === "object") {
+        const ex = (row as { exercise?: unknown }).exercise;
+        if (ex != null) {
+          const t = String(ex).trim();
+          if (t) exerciseName = t;
+        }
+      }
+      const label =
+        exerciseName === ""
+          ? "種目未入力"
+          : bodyPartLabelForExerciseName(exerciseName);
+      counts.set(label, (counts.get(label) ?? 0) + 1);
+    }
+  }
+  return [...counts.entries()]
+    .map(([label, count]) => ({ label, count }))
+    .sort((a, b) => b.count - a.count);
 }
 
 /** 月内の「reps ありセット」を種目名ごとに集計（件数降順）。種目空欄は「種目未入力」。 */

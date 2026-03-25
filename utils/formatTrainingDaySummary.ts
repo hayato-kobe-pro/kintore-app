@@ -11,10 +11,20 @@ export function formatTrainingDaySummary(sets: unknown): string {
     const exercise = o.exercise != null ? String(o.exercise).trim() : "";
     const repsRaw = o.reps;
     const weightRaw = o.weight;
+    const repsParsed =
+      repsRaw === "" || repsRaw == null
+        ? null
+        : parseInt(String(repsRaw), 10);
     const hasReps =
-      repsRaw !== "" &&
-      repsRaw != null &&
-      Number.isFinite(parseInt(String(repsRaw), 10));
+      repsParsed != null && Number.isFinite(repsParsed) && repsParsed > 0;
+    /** 回数が 0 回以下のセットは一覧に出さない */
+    if (
+      repsParsed != null &&
+      Number.isFinite(repsParsed) &&
+      repsParsed <= 0
+    ) {
+      continue;
+    }
     if (!exercise && !hasReps) continue;
 
     const repStr =

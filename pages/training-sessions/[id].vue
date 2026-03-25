@@ -412,7 +412,12 @@ async function confirmAndDeleteSession() {
             :key="name"
             class="session-view-exercise-item"
           >
-            <span class="session-view-exercise-name">{{ name }}</span>
+            <div class="session-view-exercise-head">
+              <span class="session-view-exercise-name">{{ name }}</span>
+              <span class="bodypart-tag session-view-bodypart">{{
+                exerciseCatalog.bodyPart(name)
+              }}</span>
+            </div>
             <a
               v-if="guideUrl(name)"
               :href="guideUrl(name)"
@@ -563,6 +568,10 @@ async function confirmAndDeleteSession() {
                 </li>
               </ul>
             </div>
+            <span
+              v-if="line && validNames.has(line)"
+              class="bodypart-tag session-exercise-bodypart"
+            >{{ exerciseCatalog.bodyPart(line) }}</span>
             <div
               v-if="!line || !validNames.has(line)"
               class="session-exercise-guide session-exercise-guide--placeholder"

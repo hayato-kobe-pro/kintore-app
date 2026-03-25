@@ -4,7 +4,7 @@ import { displayGoalsFromProfile } from "~/utils/displayGoalsFromProfile";
 import { formatTrainingDaySummary } from "~/utils/formatTrainingDaySummary";
 import {
   countTrainingSetsInMonth,
-  exerciseSetCountsForMonth,
+  bodyPartSetCountsForMonth,
   monthBoundsYmd,
 } from "~/utils/trainingMetrics";
 import {
@@ -77,7 +77,7 @@ const trainingRows = ref<TrainingRow[]>([]);
 /** `<input type="month">` 用 `yyyy-MM` */
 const trainingMonthYm = ref("");
 const trainingSetCountMonth = ref(0);
-const trainingExerciseSlices = ref<{ label: string; count: number }[]>([]);
+const trainingBodyPartSlices = ref<{ label: string; count: number }[]>([]);
 
 const bodyLoading = ref(false);
 const bodyError = ref("");
@@ -171,7 +171,7 @@ async function loadTrainingForSelectedMonth() {
   trainingError.value = "";
   trainingRows.value = [];
   trainingSetCountMonth.value = 0;
-  trainingExerciseSlices.value = [];
+  trainingBodyPartSlices.value = [];
   if (!uid.value) {
     trainingLoading.value = false;
     return;
@@ -190,7 +190,7 @@ async function loadTrainingForSelectedMonth() {
       forUserId: uid.value,
     });
     trainingSetCountMonth.value = countTrainingSetsInMonth(map, year, month);
-    trainingExerciseSlices.value = exerciseSetCountsForMonth(
+    trainingBodyPartSlices.value = bodyPartSetCountsForMonth(
       map,
       year,
       month,
@@ -203,7 +203,7 @@ async function loadTrainingForSelectedMonth() {
     }));
   } catch {
     trainingError.value = "トレーニングログの取得に失敗しました。";
-    trainingExerciseSlices.value = [];
+    trainingBodyPartSlices.value = [];
   } finally {
     trainingLoading.value = false;
   }
@@ -365,7 +365,7 @@ watch(
     trainingRows.value = [];
     trainingError.value = "";
     trainingSetCountMonth.value = 0;
-    trainingExerciseSlices.value = [];
+    trainingBodyPartSlices.value = [];
     bodyEntries.value = [];
     bodyError.value = "";
     bodyLoaded.value = false;
@@ -555,9 +555,9 @@ useHead(
             <span class="admin-training-summary__unit">回</span>
           </p>
           <AdminTrainingExercisePie
-            v-if="trainingExerciseSlices.length > 0"
+            v-if="trainingBodyPartSlices.length > 0"
             :key="`${uid}-${trainingMonthYm}-pie`"
-            :slices="trainingExerciseSlices"
+            :slices="trainingBodyPartSlices"
           />
         </template>
         <p v-else-if="trainingLoading" class="admin-user-detail__loading">

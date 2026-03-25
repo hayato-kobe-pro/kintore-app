@@ -1,4 +1,5 @@
 @import "./exercise-combo.css";
+@import "./bodypart-tag.css";
 
 .training-title-row {
   display: flex;
