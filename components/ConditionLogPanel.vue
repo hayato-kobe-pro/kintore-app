@@ -18,7 +18,11 @@ import {
   ymd,
   yRange,
 } from "~/utils/conditionGraphCore";
-import { conditionEmojiForLabel } from "~/utils/conditionLevels";
+import {
+  CONDITION_LEVEL_EMOJI,
+  CONDITION_LEVEL_LABELS,
+  conditionEmojiForLabel,
+} from "~/utils/conditionLevels";
 
 Chart.register(...registerables);
 
@@ -35,11 +39,14 @@ const props = withDefaults(
     chartsGrid?: boolean;
     /** タブ復帰時に親の目標キャッシュを更新（ログインユーザー向け） */
     externalGoalsRefresh?: () => void | Promise<void>;
+    /** 管理画面など：体調ストリップの顔文字凡例を表示 */
+    showMoodLegend?: boolean;
   }>(),
   {
     persistPreferences: true,
     domIdPrefix: "",
     chartsGrid: false,
+    showMoodLegend: false,
   },
 );
 
@@ -450,6 +457,22 @@ watch(
             >{{ cell.emoji }}</span>
           </div>
         </div>
+        <ul
+          v-if="showMoodLegend"
+          class="condition-mood-legend"
+          aria-label="体調の凡例"
+        >
+          <li
+            v-for="label in CONDITION_LEVEL_LABELS"
+            :key="label"
+            class="condition-mood-legend__item"
+          >
+            <span class="condition-mood-legend__emoji">{{
+              CONDITION_LEVEL_EMOJI[label]
+            }}</span>
+            <span class="condition-mood-legend__label">{{ label }}</span>
+          </li>
+        </ul>
         <p
           v-if="conditionMoodCells.length > 0 && !conditionMoodHasAny"
           class="empty-hint"

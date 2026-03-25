@@ -12,6 +12,7 @@ import {
   type BodyLogEntry,
 } from "~/composables/useBodyLog";
 import type { DocumentData, QueryDocumentSnapshot } from "firebase/firestore";
+import { fetchTrainerCommentReactionsMap } from "~/composables/fetchTrainerCommentReactionsMap";
 import {
   addAdminUserComment,
   adminCommentTodayYmd,
@@ -92,6 +93,8 @@ const commentsLastCursor = ref<QueryDocumentSnapshot<DocumentData> | null>(
   null,
 );
 const commentsHasMore = ref(false);
+/** コメント ID → ユーザーが付けたリアクション絵文字 */
+const commentReactions = ref<Record<string, string>>({});
 
 const commentModalOpen = ref(false);
 const commentModalMode = ref<"create" | "edit">("create");
@@ -232,22 +235,28 @@ async function loadAdminCommentsFirstPage() {
   commentsLastCursor.value = null;
   commentsHasMore.value = false;
   if (!uid.value) {
+    commentReactions.value = {};
     commentsLoading.value = false;
     return;
   }
   try {
-    const r = await fetchAdminUserCommentsPage(
-      uid.value,
-      ADMIN_COMMENTS_PAGE_SIZE,
-      null,
-    );
+    const [r, reactMap] = await Promise.all([
+      fetchAdminUserCommentsPage(
+        uid.value,
+        ADMIN_COMMENTS_PAGE_SIZE,
+        null,
+      ),
+      fetchTrainerCommentReactionsMap(uid.value),
+    ]);
     comments.value = r.items;
     commentsLastCursor.value = r.lastDoc;
     commentsHasMore.value = r.hasMore;
+    commentReactions.value = reactMap;
     commentsLoaded.value = true;
   } catch {
     commentsError.value = "コメントの取得に失敗しました。";
     comments.value = [];
+    commentReactions.value = {};
   } finally {
     commentsLoading.value = false;
   }
@@ -259,14 +268,18 @@ async function loadAdminCommentsMore() {
   }
   commentsLoadingMore.value = true;
   try {
-    const r = await fetchAdminUserCommentsPage(
-      uid.value,
-      ADMIN_COMMENTS_PAGE_SIZE,
-      commentsLastCursor.value,
-    );
+    const [r, reactMap] = await Promise.all([
+      fetchAdminUserCommentsPage(
+        uid.value,
+        ADMIN_COMMENTS_PAGE_SIZE,
+        commentsLastCursor.value,
+      ),
+      fetchTrainerCommentReactionsMap(uid.value),
+    ]);
     comments.value = [...comments.value, ...r.items];
     commentsLastCursor.value = r.lastDoc;
     commentsHasMore.value = r.hasMore;
+    commentReactions.value = reactMap;
   } catch {
     commentsError.value = "追加の取得に失敗しました。";
   } finally {
@@ -361,6 +374,7 @@ watch(
     commentsLoaded.value = false;
     commentsLastCursor.value = null;
     commentsHasMore.value = false;
+    commentReactions.value = {};
     commentModalOpen.value = false;
     initTrainingMonthYm();
     void loadProfile();
@@ -501,6 +515,7 @@ useHead(
           :goals="chartGoals"
           :dom-id-prefix="chartDomPrefix"
           :persist-preferences="false"
+          :show-mood-legend="true"
           charts-grid
         />
       </div>
@@ -645,6 +660,9 @@ useHead(
               <tr>
                 <th scope="col">表示日付</th>
                 <th scope="col">コメント</th>
+                <th scope="col" class="admin-user-comments-table__th-reaction">
+                  反応
+                </th>
                 <th scope="col" class="admin-user-comments-table__th-actions">
                   操作
                 </th>
@@ -668,6 +686,23 @@ useHead(
                   <span class="admin-user-comments-table__preview">{{
                     c.text
                   }}</span>
+                </td>
+                <td
+                  class="admin-user-comments-table__reaction"
+                  :title="
+                    commentReactions[c.id]
+                      ? `反応: ${commentReactions[c.id]}`
+                      : '反応なし'
+                  "
+                >
+                  <span
+                    v-if="commentReactions[c.id]"
+                    class="admin-user-comments-table__reaction-emoji"
+                    aria-hidden="true"
+                  >{{ commentReactions[c.id] }}</span>
+                  <span v-else class="admin-user-comments-table__reaction-empty"
+                    >—</span
+                  >
                 </td>
                 <td class="admin-user-comments-table__actions">
                   <button

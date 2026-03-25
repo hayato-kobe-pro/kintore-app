@@ -593,6 +593,30 @@ html.admin-ui body {
   border-bottom: none;
 }
 
+.admin-user-comments-table__th-reaction {
+  width: 2.75rem;
+  max-width: 2.75rem;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.admin-user-comments-table__reaction {
+  text-align: center;
+  vertical-align: middle;
+  font-size: 1.125rem;
+  white-space: nowrap;
+}
+
+.admin-user-comments-table__reaction-emoji {
+  display: inline-block;
+  line-height: 1;
+}
+
+.admin-user-comments-table__reaction-empty {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+
 .admin-user-comments-table__th-actions {
   white-space: nowrap;
   width: 1%;

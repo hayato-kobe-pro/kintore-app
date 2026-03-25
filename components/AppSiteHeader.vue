@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { TRAINER_COMMENT_REACTION_EMOJIS } from "~/utils/trainerCommentReactions";
+
 const route = useRoute();
 const runtimeConfig = useRuntimeConfig();
 const { user, isConfigured, signOut } = useFirebaseAuth();
@@ -8,6 +10,8 @@ const inbox = useTrainerCommentsInbox();
 const menuOpen = ref(false);
 const menuBtn = ref<HTMLButtonElement | null>(null);
 const commentsPanelOpen = ref(false);
+/** リアクション絵文字ピッカーを開いているコメント ID（1件のみ） */
+const reactionPickerOpenCommentId = ref<string | null>(null);
 
 const baseNav = [
   { to: "/", label: "コンディションレコード", match: (p: string) => p === "/" },
@@ -48,11 +52,6 @@ const nav = computed(() => {
   return items;
 });
 
-onMounted(() => {
-  void refreshAdmin();
-  if (user.value?.uid) void inbox.refreshInbox();
-});
-
 watch(user, () => {
   void refreshAdmin();
   void inbox.refreshInbox();
@@ -64,6 +63,7 @@ function isCurrent(item: (typeof nav)[0]) {
 
 function openMenu() {
   if (commentsPanelOpen.value) {
+    reactionPickerOpenCommentId.value = null;
     commentsPanelOpen.value = false;
     void inbox.markAllInListAsSeen();
   }
@@ -93,6 +93,7 @@ async function openCommentsPanel() {
 }
 
 async function closeCommentsPanel() {
+  reactionPickerOpenCommentId.value = null;
   await inbox.markAllInListAsSeen();
   commentsPanelOpen.value = false;
   if (import.meta.client) {
@@ -114,13 +115,49 @@ function onDocKeydown(e: KeyboardEvent) {
   }
 }
 
+function onDocPointerDownCloseReactionPicker(e: PointerEvent) {
+  if (reactionPickerOpenCommentId.value == null) return;
+  const t = e.target;
+  if (!(t instanceof Element)) return;
+  if (t.closest(".site-comments-panel__reaction-area")) return;
+  reactionPickerOpenCommentId.value = null;
+}
+
+function toggleReactionPicker(commentId: string, e: MouseEvent) {
+  e.stopPropagation();
+  reactionPickerOpenCommentId.value =
+    reactionPickerOpenCommentId.value === commentId ? null : commentId;
+}
+
+async function pickTrainerCommentReaction(
+  commentId: string,
+  emoji: string,
+) {
+  await inbox.setCommentReaction(commentId, emoji);
+  reactionPickerOpenCommentId.value = null;
+}
+
 onMounted(() => {
+  void refreshAdmin();
+  if (user.value?.uid) void inbox.refreshInbox();
   document.addEventListener("keydown", onDocKeydown);
+  if (import.meta.client) {
+    document.addEventListener(
+      "pointerdown",
+      onDocPointerDownCloseReactionPicker,
+    );
+  }
 });
 
 onUnmounted(() => {
   document.removeEventListener("keydown", onDocKeydown);
-  if (import.meta.client) document.body.style.overflow = "";
+  if (import.meta.client) {
+    document.removeEventListener(
+      "pointerdown",
+      onDocPointerDownCloseReactionPicker,
+    );
+    document.body.style.overflow = "";
+  }
 });
 
 watch(menuOpen, (open) => {
@@ -148,6 +185,7 @@ const showAuthUi = computed(
 
 async function onLogout() {
   closeMenu();
+  reactionPickerOpenCommentId.value = null;
   commentsPanelOpen.value = false;
   if (import.meta.client) document.body.style.overflow = "";
   await signOut?.();
@@ -351,6 +389,61 @@ function formatTrainerCommentDate(ymd: string): string {
           >未読</span>
         </div>
         <p class="site-comments-panel__text">{{ c.text }}</p>
+        <div class="site-comments-panel__reaction-area">
+          <div class="site-comments-panel__reaction-row">
+            <button
+              type="button"
+              class="site-comments-panel__face-add-btn"
+              :aria-expanded="
+                reactionPickerOpenCommentId === c.id ? 'true' : 'false'
+              "
+              aria-haspopup="listbox"
+              aria-label="リアクションを選ぶ"
+              :disabled="inbox.reactionSavingCommentId === c.id"
+              @click="toggleReactionPicker(c.id, $event)"
+            >
+              <img
+                src="/icons/face-add.svg"
+                alt=""
+                width="22"
+                height="22"
+                class="site-comments-panel__face-add-img"
+                decoding="async"
+              >
+            </button>
+            <span
+              v-if="inbox.reactionForComment(c.id)"
+              class="site-comments-panel__reaction-selected"
+              aria-hidden="true"
+            >{{ inbox.reactionForComment(c.id) }}</span>
+          </div>
+          <div
+            v-if="reactionPickerOpenCommentId === c.id"
+            class="site-comments-panel__reaction-picker"
+            role="listbox"
+            aria-label="リアクション"
+          >
+            <button
+              v-for="e in TRAINER_COMMENT_REACTION_EMOJIS"
+              :key="e"
+              type="button"
+              class="site-comments-panel__reaction-btn"
+              :class="{
+                'site-comments-panel__reaction-btn--selected':
+                  inbox.reactionForComment(c.id) === e,
+              }"
+              :disabled="inbox.reactionSavingCommentId === c.id"
+              role="option"
+              :aria-selected="
+                inbox.reactionForComment(c.id) === e ? 'true' : 'false'
+              "
+              :aria-label="`${e}でリアクション`"
+              @click="pickTrainerCommentReaction(c.id, e)"
+            >
+              {{ e }}
+            </button>
+          </div>
+        </div>
       </li>
     </ul>
   </div>
