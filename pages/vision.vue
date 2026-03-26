@@ -121,9 +121,9 @@ onMounted(async () => {
             <textarea
               id="vision-purpose"
               v-model="purpose"
-              class="vision-textarea"
+              class="vision-textarea vision-textarea--purpose"
               maxlength="300"
-              rows="5"
+              rows="8"
               aria-labelledby="vision-purpose-heading"
               placeholder="なぜボディメイクをしたいか、モチベーションや背景など"
               @input="onPurposeInput"

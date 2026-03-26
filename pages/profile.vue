@@ -174,6 +174,7 @@ function computeGoalsFromProfile(p: Profile) {
 useHead({ title: "プロフィール" });
 
 const { user } = useFirebaseAuth();
+const { isDark, toggle: toggleUserTheme } = useUserTheme();
 const profileFirestore = useProfileFirestore();
 const profile = reactive<Profile>({ ...DEFAULT_PROFILE });
 const saveError = ref<string | null>(null);
@@ -584,6 +585,36 @@ watch(
               @change="onGoalMacroInput('goalFiber', inputVal($event))"
             />
           </div>
+        </div>
+      </section>
+
+      <section
+        class="card profile-card profile-theme-card"
+        aria-labelledby="profile-theme-heading"
+      >
+        <h2 id="profile-theme-heading" class="profile-section-title">
+          表示
+        </h2>
+        <p class="profile-section-note profile-theme-note">
+          ログイン後のアプリ画面の背景と文字色を切り替えます。
+        </p>
+        <div class="profile-theme-row">
+          <span id="profile-theme-label" class="profile-theme-label">ダークモード</span>
+          <button
+            type="button"
+            class="profile-theme-switch"
+            role="switch"
+            :aria-checked="isDark ? 'true' : 'false'"
+            aria-labelledby="profile-theme-label"
+            @click="toggleUserTheme()"
+          >
+            <span class="profile-theme-switch__track" aria-hidden="true">
+              <span class="profile-theme-switch__thumb" />
+            </span>
+            <span class="profile-theme-switch__sr">{{
+              isDark ? "ダークモードオン" : "ダークモードオフ"
+            }}</span>
+          </button>
         </div>
       </section>
 

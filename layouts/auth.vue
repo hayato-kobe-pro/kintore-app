@@ -1,5 +1,6 @@
 <script setup lang="ts">
 const route = useRoute();
+const userTheme = useUserTheme();
 
 const redirectQuery = computed(() => {
   const r = route.query.redirect;
@@ -8,6 +9,19 @@ const redirectQuery = computed(() => {
 });
 
 const isAdminLogin = computed(() => redirectQuery.value.startsWith("/admin"));
+
+onMounted(() => {
+  if (!import.meta.client) return;
+  document.documentElement.classList.add("auth-ui");
+  document.body.classList.add("auth-ui");
+});
+
+onBeforeUnmount(() => {
+  if (!import.meta.client) return;
+  document.documentElement.classList.remove("auth-ui");
+  document.body.classList.remove("auth-ui");
+  userTheme.syncFromStorage();
+});
 </script>
 
 <template>

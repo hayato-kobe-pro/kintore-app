@@ -26,6 +26,7 @@ export default defineNuxtConfig({
   },
   css: [
     "~/assets/css/styles.css",
+    "~/assets/css/theme-user-dark.css",
     "~/assets/css/site-header.css",
     "~/assets/css/admin.css",
   ],

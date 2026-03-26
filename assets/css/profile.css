@@ -61,3 +61,81 @@
   outline-offset: 0;
   border-color: transparent;
 }
+
+.profile-theme-note {
+  margin-top: 0;
+}
+
+.profile-theme-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.profile-theme-label {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.profile-theme-switch {
+  position: relative;
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.profile-theme-switch:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 999px;
+}
+
+.profile-theme-switch__track {
+  display: block;
+  width: 52px;
+  height: 30px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-pressed);
+  transition: background 0.2s ease, border-color 0.2s ease;
+  position: relative;
+}
+
+.profile-theme-switch[aria-checked="true"] .profile-theme-switch__track {
+  background: var(--accent);
+  border-color: transparent;
+}
+
+.profile-theme-switch__thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  transition: transform 0.2s ease;
+}
+
+.profile-theme-switch[aria-checked="true"] .profile-theme-switch__thumb {
+  transform: translateX(22px);
+}
+
+.profile-theme-switch__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

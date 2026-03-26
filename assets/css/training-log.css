@@ -1,4 +1,4 @@
-/* トレーニングログ月間カレンダー（白背景・カラー種目チップ） */
+/* トレーニングログ月間カレンダー（ライト/ダークは var(--surface) 等で追従） */
 /* 月切り替えバーは .app-header / .nav-btn / .date-label（styles.css）と共通 */
 
 .tl-cal-toolbar {
@@ -57,7 +57,7 @@
   gap: 0;
   padding: 8px 0 6px;
   border-bottom: 1px solid var(--border);
-  background: #fafafa;
+  background: var(--surface-pressed);
 }
 
 .tl-cal-weekdays span {
@@ -84,8 +84,8 @@
   min-height: 86px;
   height: 86px;
   padding: 3px 2px 4px;
-  border-right: 1px solid #eee;
-  border-bottom: 1px solid #eee;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
   text-decoration: none;
   color: inherit;
   -webkit-tap-highlight-color: transparent;
@@ -93,7 +93,7 @@
   flex-direction: column;
   align-items: stretch;
   gap: 3px;
-  background: #fff;
+  background: var(--surface);
   overflow: hidden;
 }
 
@@ -102,15 +102,15 @@
 }
 
 .tl-cell:active {
-  background: #f5f5f5;
+  background: var(--surface-pressed);
 }
 
 .tl-cell--muted {
-  background: #fafafa;
+  background: var(--bg);
 }
 
 .tl-cell--muted .tl-cell__num {
-  color: #bdbdbd;
+  color: var(--text-muted);
 }
 
 .tl-cell__num {
@@ -164,4 +164,14 @@
   font-size: 0.75rem;
   color: var(--text-muted);
   line-height: 1.45;
+}
+
+/* カレンダー直下：部位別セット割合（管理画面と同コンポーネント） */
+.tl-bodypart-section {
+  margin-top: 18px;
+  width: 100%;
+}
+
+.tl-bodypart-section .admin-training-pie {
+  margin-bottom: 0;
 }

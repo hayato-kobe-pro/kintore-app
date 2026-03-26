@@ -43,6 +43,11 @@
   font: inherit;
 }
 
+/* ボディメイクの目的のみ、入力しやすいよう高さを約1.5倍 */
+.vision-textarea--purpose {
+  min-height: 150px;
+}
+
 .vision-textarea:focus {
   outline: 2px solid var(--accent);
   outline-offset: 0;

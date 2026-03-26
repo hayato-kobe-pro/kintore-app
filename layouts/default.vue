@@ -4,10 +4,15 @@ const adminGateReason = useState<"not_admin" | "firestore_error" | null>(
   () => null,
 );
 const { user } = useFirebaseAuth();
+const userTheme = useUserTheme();
 
 function dismissAdminGate() {
   adminGateReason.value = null;
 }
+
+onMounted(() => {
+  userTheme.syncFromStorage();
+});
 </script>
 
 <template>

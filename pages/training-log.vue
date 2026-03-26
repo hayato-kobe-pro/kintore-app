@@ -1,4 +1,9 @@
 <script setup lang="ts">
+import {
+  bodyPartSetCountsForMonth,
+  countTrainingSetsInMonth,
+} from "~/utils/trainingMetrics";
+
 const exerciseCatalog = useTrainingExerciseCatalog();
 const exerciseNamesList = computed(() => exerciseCatalog.names.value);
 
@@ -9,6 +14,20 @@ const EXERCISE_CHIP_STYLES = [
   { bg: "#f3e8fd", color: "#7c2f9f" },
   { bg: "#fce8e6", color: "#c5221f" },
 ];
+
+const EXERCISE_CHIP_STYLES_DARK = [
+  { bg: "rgba(138, 180, 248, 0.22)", color: "#8ab4f8" },
+  { bg: "rgba(129, 201, 149, 0.22)", color: "#81c995" },
+  { bg: "rgba(253, 212, 129, 0.2)", color: "#fdd663" },
+  { bg: "rgba(197, 134, 252, 0.22)", color: "#c5a8fc" },
+  { bg: "rgba(242, 139, 130, 0.22)", color: "#f28b82" },
+];
+
+const { isDark: userThemeIsDark } = useUserTheme();
+
+const exerciseChipPalette = computed(() =>
+  userThemeIsDark.value ? EXERCISE_CHIP_STYLES_DARK : EXERCISE_CHIP_STYLES,
+);
 
 function ymd(d: Date) {
   const y = d.getFullYear();
@@ -82,7 +101,8 @@ function topDistinctExercises(
 function chipStyle(name: string) {
   const i = exerciseNamesList.value.indexOf(name);
   const idx = i >= 0 ? i : 0;
-  return EXERCISE_CHIP_STYLES[idx % EXERCISE_CHIP_STYLES.length];
+  const palette = exerciseChipPalette.value;
+  return palette[idx % palette.length];
 }
 
 useHead({ title: "トレーニングログ" });
@@ -120,6 +140,26 @@ const monthTitle = computed(() =>
     month: "long",
   }).format(viewMonth.value),
 );
+
+const bodyPartSlices = computed(() => {
+  tick.value;
+  const vm = viewMonth.value;
+  return bodyPartSetCountsForMonth(
+    entries.value,
+    vm.getFullYear(),
+    vm.getMonth() + 1,
+  );
+});
+
+const trainingSetCountMonth = computed(() => {
+  tick.value;
+  const vm = viewMonth.value;
+  return countTrainingSetsInMonth(
+    entries.value,
+    vm.getFullYear(),
+    vm.getMonth() + 1,
+  );
+});
 
 type Cell = {
   key: string;
@@ -326,31 +366,62 @@ async function onVisibility() {
       </button>
     </div>
 
-    <div id="tl-cal-grid" class="tl-cal-grid">
-      <NuxtLink
-        v-for="(c, i) in cells"
-        :key="i"
-        class="tl-cell"
-        :class="{
-          'tl-cell--muted': c.muted,
-          'tl-cell--today': c.isToday,
-        }"
-        :to="{ path: '/training', query: { date: c.key } }"
-        :aria-label="`${c.dayNum}日、トレーニングを記録`"
-      >
-        <span class="tl-cell__num">{{ c.dayNum }}</span>
-        <div class="tl-cell__chips">
-          <span
-            v-for="name in c.chips"
-            :key="name"
-            class="tl-chip"
-            :style="{
-              background: chipStyle(name).bg,
-              color: chipStyle(name).color,
-            }"
-          >{{ name }}</span>
-        </div>
-      </NuxtLink>
+    <div class="tl-cal-card">
+      <div class="tl-cal-weekdays" aria-hidden="true">
+        <span>日</span>
+        <span>月</span>
+        <span>火</span>
+        <span>水</span>
+        <span>木</span>
+        <span>金</span>
+        <span>土</span>
+      </div>
+      <div id="tl-cal-grid" class="tl-cal-grid">
+        <NuxtLink
+          v-for="(c, i) in cells"
+          :key="i"
+          class="tl-cell"
+          :class="{
+            'tl-cell--muted': c.muted,
+            'tl-cell--today': c.isToday,
+          }"
+          :to="{ path: '/training', query: { date: c.key } }"
+          :aria-label="`${c.dayNum}日、トレーニングを記録`"
+        >
+          <span class="tl-cell__num">{{ c.dayNum }}</span>
+          <div class="tl-cell__chips">
+            <span
+              v-for="name in c.chips"
+              :key="name"
+              class="tl-chip"
+              :style="{
+                background: chipStyle(name).bg,
+                color: chipStyle(name).color,
+              }"
+            >{{ name }}</span>
+          </div>
+        </NuxtLink>
+      </div>
+    </div>
+
+    <div
+      v-if="trainingSetCountMonth > 0"
+      class="tl-bodypart-section"
+    >
+      <p class="admin-training-summary" role="status">
+        <span class="admin-training-summary__label">
+          {{ monthTitle }}のトレーニング回数
+        </span>
+        <span class="admin-training-summary__num">{{
+          trainingSetCountMonth
+        }}</span>
+        <span class="admin-training-summary__unit">回</span>
+      </p>
+      <AdminTrainingExercisePie
+        v-if="bodyPartSlices.length > 0"
+        :key="`${monthKeyFromDate(viewMonth)}-pie`"
+        :slices="bodyPartSlices"
+      />
     </div>
   </main>
 

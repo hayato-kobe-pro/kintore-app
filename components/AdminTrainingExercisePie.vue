@@ -10,6 +10,20 @@ const props = defineProps<{
 const canvasRef = ref<HTMLCanvasElement | null>(null);
 let chart: ChartType | null = null;
 
+const { isDark: userThemeIsDark } = useUserTheme();
+
+function readChartTheme() {
+  if (!import.meta.client) {
+    return { legendColor: "#525252", sliceBorder: "#ffffff" };
+  }
+  const cs = getComputedStyle(document.documentElement);
+  const legend =
+    cs.getPropertyValue("--text-muted").trim() || "#737373";
+  const sliceBorder =
+    cs.getPropertyValue("--surface").trim() || "#ffffff";
+  return { legendColor: legend, sliceBorder };
+}
+
 const PALETTE = [
   "#2563eb",
   "#db2777",
@@ -37,6 +51,7 @@ function draw() {
   if (total <= 0) return;
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
+  const { legendColor, sliceBorder } = readChartTheme();
   chart = new Chart(ctx, {
     type: "pie",
     data: {
@@ -46,7 +61,7 @@ function draw() {
           data: props.slices.map((s) => s.count),
           backgroundColor: colorsFor(props.slices.length),
           borderWidth: 1,
-          borderColor: "#ffffff",
+          borderColor: sliceBorder,
         },
       ],
     },
@@ -60,7 +75,7 @@ function draw() {
             boxWidth: 12,
             font: { size: 11 },
             padding: 10,
-            color: "#525252",
+            color: legendColor,
           },
         },
         tooltip: {
@@ -84,6 +99,8 @@ watch(
   () => void nextTick(() => draw()),
   { deep: true },
 );
+
+watch(userThemeIsDark, () => void nextTick(() => draw()));
 
 onMounted(() => void nextTick(() => draw()));
 onBeforeUnmount(() => {
