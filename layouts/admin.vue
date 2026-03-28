@@ -34,7 +34,17 @@ onBeforeUnmount(() => {
 <template>
   <div class="admin-layout">
     <header class="admin-layout__header">
-      <div class="admin-layout__title">管理画面</div>
+      <div class="admin-layout__brand">
+        <img
+          src="/daiki-fit_2.png"
+          alt=""
+          class="admin-layout__logo"
+          width="36"
+          height="36"
+          decoding="async"
+        />
+        <h1 class="admin-layout__title">管理画面</h1>
+      </div>
       <div class="admin-layout__actions">
         <span v-if="user?.email" class="admin-layout__email">{{ user.email }}</span>
         <button

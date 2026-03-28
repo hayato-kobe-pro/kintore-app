@@ -72,7 +72,7 @@ async function onPickExercise(exerciseName: string) {
   pickBusy.value = true;
   try {
     const doc = await getDay(dateYmd);
-    const memo = doc?.memo != null ? String(doc.memo) : "";
+    const exerciseMemos = doc?.exerciseMemos ? { ...doc.exerciseMemos } : {};
     const rawSets =
       doc && Array.isArray(doc.sets) ? doc.sets : [];
     const sets = rawSets.map((row) => normalizeStoredSet(row));
@@ -86,7 +86,7 @@ async function onPickExercise(exerciseName: string) {
     }
 
     sets.push({ exercise: name, weight: "", reps: "" });
-    const r = await saveDay(dateYmd, sets, memo);
+    const r = await saveDay(dateYmd, sets, exerciseMemos);
     if (!r.ok) {
       pickMessage.value = r.message;
       return;

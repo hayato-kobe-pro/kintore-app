@@ -392,3 +392,104 @@ body {
   line-height: 1.2;
   text-align: center;
 }
+
+/* ユーザー向けコンディションログ：日付を行、数値を列としたテーブル */
+.main > .condition-log-panel > .user-condition-pivot-section {
+  margin-top: 14px;
+}
+
+.user-condition-pivot-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin: 0 -2px;
+}
+
+.user-condition-pivot-table {
+  width: 100%;
+  min-width: 19rem;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.user-condition-pivot-table th,
+.user-condition-pivot-table td {
+  padding: 8px 6px;
+  border: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.user-condition-pivot-table thead th {
+  background: var(--bg);
+  font-weight: 700;
+  color: var(--text);
+  text-align: center;
+}
+
+/* 2行目：各列の目標値 */
+.user-condition-pivot-table__goal-row th,
+.user-condition-pivot-table__goal-row td {
+  background: #f0f7ff;
+  font-weight: 700;
+  text-align: center;
+}
+
+.user-condition-pivot-table__goal-row-label {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  box-shadow: 1px 0 0 var(--border);
+  min-width: 4.75rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  background: #e8f2fc !important;
+}
+
+.user-condition-pivot-table__goal-row-cell {
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  font-size: 0.8125rem;
+}
+
+.user-condition-pivot-table__th-date {
+  text-align: center;
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--bg);
+  box-shadow: 1px 0 0 var(--border);
+  min-width: 5.5rem;
+}
+
+.user-condition-pivot-table__th-metric {
+  white-space: nowrap;
+}
+
+.user-condition-pivot-table__unit {
+  display: block;
+  font-size: 0.625rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.user-condition-pivot-table tbody th.user-condition-pivot-table__date-cell {
+  text-align: center;
+  background: var(--surface);
+  font-weight: 600;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: var(--text);
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  box-shadow: 1px 0 0 var(--border);
+  min-width: 4.75rem;
+  white-space: nowrap;
+}
+
+.user-condition-pivot-table__cell {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  white-space: nowrap;
+}

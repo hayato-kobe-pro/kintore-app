@@ -210,7 +210,7 @@ function formatTrainerCommentDate(ymd: string): string {
       <NuxtLink to="/" class="site-logo" aria-label="ホーム（RE-BIRTH）">
         <span class="site-logo__mark" aria-hidden="true">
           <img
-            src="/daiki-fit.png"
+            src="/daiki-fit_2.png"
             alt=""
             class="site-logo__img"
             width="36"

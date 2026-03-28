@@ -397,6 +397,58 @@ const conditionDataTableHeadingId = computed(
   () => `${props.domIdPrefix || "graph"}__condition-data-table-h`,
 );
 
+/** ユーザー向け：行＝日付、列＝体重・カロリー・タンパク質・脂質・炭水化物 */
+const USER_CONDITION_PIVOT_FIELDS = [
+  { field: "weight" as const, label: "体重", unit: "kg" },
+  { field: "calories" as const, label: "カロリー", unit: "kcal" },
+  { field: "protein" as const, label: "タンパク質", unit: "g" },
+  { field: "fat" as const, label: "脂質", unit: "g" },
+  { field: "carbs" as const, label: "炭水化物", unit: "g" },
+] as const;
+
+const userConditionPivotRows = computed(() => {
+  if (props.chartsGrid) {
+    return [] as {
+      key: string;
+      dateLabel: string;
+      cells: string[];
+    }[];
+  }
+  const days = conditionDataTableDays.value;
+  const entries = chartEntries.value;
+  const fmt = new Intl.DateTimeFormat("ja-JP", {
+    month: "numeric",
+    day: "numeric",
+    weekday: "short",
+  });
+  return days.map(({ ymd: key }) => {
+    const cells = USER_CONDITION_PIVOT_FIELDS.map(({ field }) => {
+      const raw = entries[key]?.[field];
+      const n = raw === "" || raw === undefined ? null : Number(raw);
+      const v = Number.isFinite(n as number) ? (n as number) : null;
+      return formatConditionTableCell(field, v);
+    });
+    return {
+      key,
+      dateLabel: fmt.format(parseYmd(key)),
+      cells: [...cells],
+    };
+  });
+});
+
+const userConditionPivotHeadingId = computed(
+  () => `${props.domIdPrefix || "graph"}__user-condition-pivot-h`,
+);
+
+/** 日別データテーブル：各指標の目標（プロフィール／フォールバック） */
+const userConditionPivotGoalCells = computed(() => {
+  if (props.chartsGrid) return [] as string[];
+  return USER_CONDITION_PIVOT_FIELDS.map(({ field }) => {
+    const spec = chartSpecs.value.find((s) => s.field === field);
+    return spec ? formatConditionTableGoal(spec) : "—";
+  });
+});
+
 /** 日付列が多いときだけ幅 max-content＋横スクロール。週表示では width 100% のみ（WebKit で min-width:max-content が表を壊すのを避ける） */
 const CONDITION_TABLE_SCROLL_DAY_THRESHOLD = 10;
 const conditionDataTableNeedsHorizontalScroll = computed(
@@ -960,6 +1012,74 @@ watch(
         </p>
       </section>
     </div>
+
+    <section
+      v-if="!chartsGrid && userConditionPivotRows.length > 0"
+      class="chart-card user-condition-pivot-section"
+      :aria-labelledby="userConditionPivotHeadingId"
+    >
+      <h2
+        :id="userConditionPivotHeadingId"
+        class="chart-heading"
+      >
+        <span class="chart-heading__text">日別データ</span>
+      </h2>
+      <div class="user-condition-pivot-wrap">
+        <table class="user-condition-pivot-table">
+          <thead>
+            <tr>
+              <th scope="col" class="user-condition-pivot-table__th-date">
+                日付
+              </th>
+              <th
+                v-for="col in USER_CONDITION_PIVOT_FIELDS"
+                :key="col.field"
+                scope="col"
+                class="user-condition-pivot-table__th-metric"
+              >
+                {{ col.label }}
+                <span class="user-condition-pivot-table__unit">({{ col.unit }})</span>
+              </th>
+            </tr>
+            <tr class="user-condition-pivot-table__goal-row">
+              <th
+                scope="row"
+                class="user-condition-pivot-table__goal-row-label"
+              >
+                目標
+              </th>
+              <td
+                v-for="(g, gi) in userConditionPivotGoalCells"
+                :key="`goal-${USER_CONDITION_PIVOT_FIELDS[gi]!.field}`"
+                class="user-condition-pivot-table__goal-row-cell"
+              >
+                {{ g }}
+              </td>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="row in userConditionPivotRows"
+              :key="row.key"
+            >
+              <th
+                scope="row"
+                class="user-condition-pivot-table__date-cell"
+              >
+                {{ row.dateLabel }}
+              </th>
+              <td
+                v-for="(cell, i) in row.cells"
+                :key="`${row.key}-${USER_CONDITION_PIVOT_FIELDS[i]!.field}`"
+                class="user-condition-pivot-table__cell"
+              >
+                {{ cell }}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
   </div>
 </template>
 

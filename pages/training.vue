@@ -199,7 +199,8 @@ function bumpSessionOptions() {
 }
 
 const sets = ref<SetRow[]>([]);
-const dayMemo = ref("");
+/** 種目ブロック先頭行インデックス（文字列キー）→ メモ */
+const exerciseMemosLocal = ref<Record<string, string>>({});
 
 let memoPersistTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -320,17 +321,91 @@ const exerciseListEntries = computed(() => {
   return entries;
 });
 
+/** 保存時に、現在の sets に存在する種目ブロック先頭だけのメモを残す */
+function exerciseBlockStartKeys(rows: SetRow[]): Set<string> {
+  const keys = new Set<string>();
+  let i = 0;
+  while (i < rows.length) {
+    const ex = normalizeExercise(rows[i]!.exercise);
+    if (!ex) {
+      i += 1;
+      continue;
+    }
+    keys.add(String(i));
+    while (
+      i + 1 < rows.length &&
+      normalizeExercise(rows[i + 1]!.exercise) === ex
+    ) {
+      i += 1;
+    }
+    i += 1;
+  }
+  return keys;
+}
+
+function prunedExerciseMemosForSave(
+  memos: Record<string, string>,
+  rows: SetRow[],
+): Record<string, string> {
+  const valid = exerciseBlockStartKeys(rows);
+  const out: Record<string, string> = {};
+  for (const k of valid) {
+    const v = memos[k];
+    if (v == null || String(v).trim() === "") continue;
+    out[k] = clampDayMemo(String(v));
+  }
+  return out;
+}
+
+const detailMemoModel = computed({
+  get() {
+    const a = detailAnchorIndex.value;
+    if (a == null) return "";
+    return exerciseMemosLocal.value[String(a)] ?? "";
+  },
+  set(v: string) {
+    const a = detailAnchorIndex.value;
+    if (a == null) return;
+    const key = String(a);
+    const c = clampDayMemo(v);
+    const next = { ...exerciseMemosLocal.value };
+    if (c === "") delete next[key];
+    else next[key] = c;
+    exerciseMemosLocal.value = next;
+  },
+});
+
 /** トレーニングログの日セルチップと同じ色（部位ラベル→背景・文字色） */
 function bodyPartChipStyleProps(exerciseName: string) {
   const s = bodyPartCalendarChipStyle(exerciseCatalog.bodyPart(exerciseName));
   return { background: s.bg, color: s.color };
 }
 
+const trainingPageTopRef = ref<HTMLElement | null>(null);
+
+function isNarrowMobileViewport() {
+  if (import.meta.server || typeof window === "undefined") return false;
+  return window.matchMedia("(max-width: 640px)").matches;
+}
+
 function openExerciseDetail(anchorIndex: number) {
   detailAnchorIndex.value = anchorIndex;
+  if (!import.meta.client || !isNarrowMobileViewport()) return;
+  nextTick(() => {
+    const el = trainingPageTopRef.value;
+    if (el) {
+      el.scrollIntoView({ block: "start", behavior: "auto" });
+      requestAnimationFrame(() => {
+        window.scrollBy({ top: -10, left: 0, behavior: "auto" });
+      });
+    } else {
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    }
+  });
 }
 
 function closeExerciseDetail() {
+  flushMemoPersist();
   detailAnchorIndex.value = null;
 }
 
@@ -352,7 +427,7 @@ async function persistSets() {
   const r = await saveTrainingDay(
     key,
     sets.value.map((s) => ({ ...s })),
-    clampDayMemo(dayMemo.value),
+    prunedExerciseMemosForSave(exerciseMemosLocal.value, sets.value),
   );
   if (!r.ok) {
     persistError.value = r.message;
@@ -366,9 +441,9 @@ async function loadSetsForCurrentDate() {
   const data = await getTrainingDay(key);
   if (!data) {
     sets.value = [emptySet()];
-    dayMemo.value = "";
+    exerciseMemosLocal.value = {};
   } else {
-    dayMemo.value = clampDayMemo(data.memo);
+    exerciseMemosLocal.value = { ...data.exerciseMemos };
     const arr = data.sets;
     if (!Array.isArray(arr) || arr.length === 0) {
       sets.value = [emptySet()];
@@ -706,7 +781,7 @@ watch(currentDate, async (_newDate, oldDate) => {
     const r = await saveTrainingDay(
       key,
       sets.value.map((s) => ({ ...s })),
-      clampDayMemo(dayMemo.value),
+      prunedExerciseMemosForSave(exerciseMemosLocal.value, sets.value),
     );
     if (!r.ok) persistError.value = r.message;
     else persistError.value = null;
@@ -736,8 +811,11 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <main class="main training-page">
-    <div class="training-page__top">
+  <main
+    class="main training-page"
+    :class="{ 'training-page--exercise-detail': !!detailBlock }"
+  >
+    <div ref="trainingPageTopRef" class="training-page__top">
       <div class="training-page__title-row training-title-row">
         <h1 class="training-page__title">トレーニング</h1>
         <NuxtLink
@@ -772,7 +850,7 @@ onUnmounted(() => {
           aria-label="種目一覧に戻る"
           @click="closeExerciseDetail"
         >
-          <span class="training-back-btn__chev" aria-hidden="true">‹</span>
+          <span class="training-back-btn__chev" aria-hidden="true">＜</span>
           <span>戻る</span>
         </button>
       </div>
@@ -983,19 +1061,30 @@ onUnmounted(() => {
             ＋ セットを追加
           </button>
           <div class="field training-day-memo-field">
-            <label class="field-label" for="training-day-memo">メモ</label>
+            <label class="field-label" for="training-day-memo">種目メモ</label>
             <textarea
               id="training-day-memo"
-              v-model="dayMemo"
+              v-model="detailMemoModel"
               class="training-day-memo"
               maxlength="300"
-              rows="7"
+              rows="4"
               enterkeyhint="done"
               autocomplete="off"
-              placeholder="今日のメモ（任意・最大300文字）"
+              placeholder="この種目だけのメモ（任意・最大300文字）"
               @input="scheduleMemoPersist"
               @blur="onTrainingDayMemoBlur"
             />
+          </div>
+          <div class="training-detail-memo-back">
+            <button
+              type="button"
+              class="training-back-btn training-back-btn--full"
+              aria-label="種目一覧に戻る"
+              @click="closeExerciseDetail"
+            >
+              <span class="training-back-btn__chev" aria-hidden="true">＜</span>
+              <span>戻る</span>
+            </button>
           </div>
         </div>
       </template>

@@ -35,7 +35,7 @@ onBeforeUnmount(() => {
       >
         <span class="site-logo__mark" aria-hidden="true">
           <img
-            src="/daiki-fit.png"
+            src="/daiki-fit_2.png"
             alt=""
             class="site-logo__img"
             width="36"
