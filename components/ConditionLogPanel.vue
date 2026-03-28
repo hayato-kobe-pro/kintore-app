@@ -8,13 +8,17 @@ import { toValue, type MaybeRefOrGetter } from "vue";
 import type { DisplayGoalKey } from "~/utils/displayGoalsFromProfile";
 import {
   buildSeries,
+  calendarMonthBounds,
   countPoints,
+  dateToIsoWeekValue,
   eachDayInclusive,
   formatAxisLabel,
+  isoWeekValueToMonday,
   parseYmd,
   rangeForPreset,
   resolveChartSpecs,
   type ConditionChartResolved,
+  todayNoon,
   ymd,
   yRange,
 } from "~/utils/conditionGraphCore";
@@ -60,6 +64,10 @@ const mode = ref<"week" | "month" | "custom">("week");
 const rangeStart = ref("");
 const rangeEnd = ref("");
 
+/** 管理画面（chartsGrid）：ISO 週 `<input type="week">` の値、月は `yyyy-MM` */
+const adminCalendarWeekValue = ref("");
+const adminMonthYm = ref("");
+
 const hintHidden = reactive<Record<string, boolean>>({});
 const chartEntries = ref<Record<string, Record<string, unknown>>>({});
 const chartInstances: Record<string, ChartType> = {};
@@ -85,6 +93,20 @@ function initCustomDefaults() {
   rangeEnd.value = ymd(end);
 }
 
+function initAdminCalendarSelectors() {
+  const t = todayNoon();
+  adminCalendarWeekValue.value = dateToIsoWeekValue(t);
+  adminMonthYm.value = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function adminDayAxisLabel(d: Date): string {
+  return new Intl.DateTimeFormat("ja-JP", {
+    month: "numeric",
+    day: "numeric",
+    weekday: "short",
+  }).format(d);
+}
+
 async function loadEntriesForRange(start: Date, end: Date) {
   const startYmd = ymd(start);
   const endYmd = ymd(end);
@@ -103,7 +125,13 @@ function renderChartForSpec(
   destroyChart(spec.id);
 
   const entries = chartEntries.value;
-  const { labels, values } = buildSeries(start, end, spec.field, entries);
+  const { labels, values } = buildSeries(
+    start,
+    end,
+    spec.field,
+    entries,
+    props.chartsGrid ? { formatDayLabel: adminDayAxisLabel } : undefined,
+  );
   const n = countPoints(values);
   if (hintEl) hintEl.hidden = n > 0;
   hintHidden[spec.emptyId] = n > 0;
@@ -215,6 +243,37 @@ async function refresh() {
       start = end;
       end = t;
     }
+  } else if (props.chartsGrid && mode.value === "week") {
+    if (!adminCalendarWeekValue.value) initAdminCalendarSelectors();
+    let mon = isoWeekValueToMonday(adminCalendarWeekValue.value);
+    if (!mon) {
+      initAdminCalendarSelectors();
+      mon = isoWeekValueToMonday(adminCalendarWeekValue.value);
+    }
+    if (!mon) {
+      const r = rangeForPreset("week");
+      start = r.start;
+      end = r.end;
+    } else {
+      start = mon;
+      end = new Date(mon);
+      end.setDate(end.getDate() + 6);
+      end.setHours(12, 0, 0, 0);
+    }
+  } else if (props.chartsGrid && mode.value === "month") {
+    if (!adminMonthYm.value) initAdminCalendarSelectors();
+    const parts = adminMonthYm.value.split("-").map(Number);
+    let y = parts[0];
+    let mo = parts[1];
+    if (!y || !mo || mo < 1 || mo > 12) {
+      initAdminCalendarSelectors();
+      const p2 = adminMonthYm.value.split("-").map(Number);
+      y = p2[0]!;
+      mo = p2[1]!;
+    }
+    const b = calendarMonthBounds(y, mo);
+    start = b.start;
+    end = b.end;
   } else {
     const r = rangeForPreset(mode.value);
     start = r.start;
@@ -259,7 +318,7 @@ const conditionMoodCells = computed((): ConditionMoodCell[] => {
       : `${key} 未記入`;
     cells.push({
       key,
-      dayLabel: formatAxisLabel(d),
+      dayLabel: props.chartsGrid ? adminDayAxisLabel(d) : formatAxisLabel(d),
       emoji: display,
       hasData: Boolean(emoji),
       isUnknown,
@@ -276,6 +335,197 @@ const conditionMoodHasAny = computed(() =>
 const moodHeadingId = computed(
   () => `${props.domIdPrefix || "graph"}__chart-h-condition-mood`,
 );
+
+/** 管理画面（chartsGrid）用：グラフ下の日別テーブル */
+const conditionDataTableDays = computed(() => {
+  const s = panelRangeStart.value;
+  const e = panelRangeEnd.value;
+  if (!s || !e) return [] as { ymd: string; header: string }[];
+  const days: { ymd: string; header: string }[] = [];
+  eachDayInclusive(s, e, (d) => {
+    days.push({
+      ymd: ymd(d),
+      header: props.chartsGrid ? adminDayAxisLabel(d) : formatAxisLabel(d),
+    });
+  });
+  return days;
+});
+
+function formatConditionTableGoal(spec: ConditionChartResolved): string {
+  const g = spec.goal;
+  if (!Number.isFinite(g)) return "—";
+  if (spec.field === "weight" || spec.field === "sleep") {
+    const r = Math.round(g * 10) / 10;
+    return r % 1 === 0 ? String(r) : r.toFixed(1);
+  }
+  return String(Math.round(g));
+}
+
+function formatConditionTableCell(
+  field: DisplayGoalKey,
+  v: number | null,
+): string {
+  if (v == null || !Number.isFinite(v)) return "—";
+  if (field === "weight" || field === "sleep") {
+    const r = Math.round(v * 10) / 10;
+    return r % 1 === 0 ? String(r) : r.toFixed(1);
+  }
+  return String(Math.round(v));
+}
+
+const conditionDataTableRows = computed(() => {
+  const days = conditionDataTableDays.value;
+  const entries = chartEntries.value;
+  return chartSpecs.value.map((spec) => {
+    const cells = days.map(({ ymd: key }) => {
+      const raw = entries[key]?.[spec.field];
+      const n = raw === "" || raw === undefined ? null : Number(raw);
+      const v = Number.isFinite(n as number) ? (n as number) : null;
+      return formatConditionTableCell(spec.field, v);
+    });
+    return {
+      field: spec.field,
+      title: spec.title,
+      unit: spec.unit,
+      goalDisplay: formatConditionTableGoal(spec),
+      cells,
+    };
+  });
+});
+
+const conditionDataTableHeadingId = computed(
+  () => `${props.domIdPrefix || "graph"}__condition-data-table-h`,
+);
+
+/** 日付列が多いときだけ幅 max-content＋横スクロール。週表示では width 100% のみ（WebKit で min-width:max-content が表を壊すのを避ける） */
+const CONDITION_TABLE_SCROLL_DAY_THRESHOLD = 10;
+const conditionDataTableNeedsHorizontalScroll = computed(
+  () => conditionDataTableDays.value.length > CONDITION_TABLE_SCROLL_DAY_THRESHOLD,
+);
+
+const MACRO_SUMMARY_ROWS: {
+  field: "calories" | "protein" | "fat" | "carbs" | "fiber";
+  label: string;
+  unit: string;
+}[] = [
+  { field: "calories", label: "カロリー", unit: "kcal" },
+  { field: "protein", label: "タンパク質", unit: "g" },
+  { field: "fat", label: "脂質", unit: "g" },
+  { field: "carbs", label: "炭水化物", unit: "g" },
+  { field: "fiber", label: "食物繊維", unit: "g" },
+];
+
+function formatMacroInt(n: number): string {
+  return Math.round(n).toLocaleString("ja-JP");
+}
+
+/** 管理画面テーブル下：5マクロの「期間目標合計 vs 実績合計」と差分 */
+const conditionMacroSummary = computed(() => {
+  if (!props.chartsGrid) return [] as {
+    field: string;
+    label: string;
+    unit: string;
+    targetTotal: number;
+    actualTotal: number;
+    targetValid: boolean;
+    delta: number;
+    deltaClass: string;
+    deltaText: string;
+  }[];
+  const days = conditionDataTableDays.value;
+  const n = days.length;
+  if (n === 0) return [];
+  const goals = toValue(props.goals);
+  const entries = chartEntries.value;
+
+  return MACRO_SUMMARY_ROWS.map(({ field, label, unit }) => {
+    const g = Number(goals[field]);
+    const targetValid = Number.isFinite(g);
+    const targetTotal = targetValid ? g * n : 0;
+    let actualTotal = 0;
+    for (const { ymd } of days) {
+      const raw = entries[ymd]?.[field];
+      const num = raw === "" || raw == null ? NaN : Number(raw);
+      if (Number.isFinite(num)) actualTotal += num;
+    }
+    const delta = targetValid ? actualTotal - targetTotal : NaN;
+    let deltaClass = "admin-macro-summary__delta";
+    let deltaText = "—";
+    if (targetValid && Number.isFinite(delta)) {
+      if (delta > 0) {
+        deltaClass += " admin-macro-summary__delta--pos";
+        deltaText = `+${formatMacroInt(delta)}`;
+      } else if (delta < 0) {
+        deltaClass += " admin-macro-summary__delta--neg";
+        deltaText = `${formatMacroInt(delta)}`;
+      } else {
+        deltaClass += " admin-macro-summary__delta--zero";
+        deltaText = "±0";
+      }
+      deltaText += ` ${unit}`;
+    }
+    return {
+      field,
+      label,
+      unit,
+      targetTotal,
+      actualTotal,
+      targetValid,
+      delta,
+      deltaClass,
+      deltaText,
+    };
+  });
+});
+
+const conditionMacroSummaryHeadingId = computed(
+  () => `${props.domIdPrefix || "graph"}__macro-summary-h`,
+);
+
+const adminWeekRangeCaption = computed(() => {
+  if (!props.chartsGrid || mode.value !== "week" || !adminCalendarWeekValue.value)
+    return "";
+  const mon = isoWeekValueToMonday(adminCalendarWeekValue.value);
+  if (!mon) return "";
+  const sun = new Date(mon);
+  sun.setDate(sun.getDate() + 6);
+  const fmt = new Intl.DateTimeFormat("ja-JP", {
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    weekday: "short",
+  });
+  return `${fmt.format(mon)}〜${fmt.format(sun)}`;
+});
+
+function adminShiftWeek(deltaWeeks: number) {
+  let mon = isoWeekValueToMonday(adminCalendarWeekValue.value);
+  if (!mon) {
+    initAdminCalendarSelectors();
+    mon = isoWeekValueToMonday(adminCalendarWeekValue.value);
+  }
+  if (!mon) return;
+  mon.setDate(mon.getDate() + deltaWeeks * 7);
+  adminCalendarWeekValue.value = dateToIsoWeekValue(mon);
+  void refresh();
+}
+
+function adminShiftMonth(deltaMonths: number) {
+  const parts = adminMonthYm.value.split("-").map(Number);
+  let y = parts[0] ?? todayNoon().getFullYear();
+  let mo = parts[1] ?? todayNoon().getMonth() + 1;
+  const d = new Date(y, mo - 1 + deltaMonths, 1, 12, 0, 0, 0);
+  adminMonthYm.value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  void refresh();
+}
+
+function onAdminWeekPickerChange() {
+  void refresh();
+}
+
+function onAdminMonthPickerChange() {
+  void refresh();
+}
 
 function onPeriodChange() {
   if (mode.value === "custom") {
@@ -333,6 +583,9 @@ onMounted(async () => {
   if (props.externalGoalsRefresh) {
     await props.externalGoalsRefresh();
     document.addEventListener("visibilitychange", onVisibility);
+  }
+  if (props.chartsGrid) {
+    initAdminCalendarSelectors();
   }
   void refresh();
 });
@@ -392,6 +645,80 @@ watch(
       <label :for="`${domIdPrefix || 'graph'}__period-custom`">期間指定</label>
     </div>
 
+    <div
+      v-if="chartsGrid && mode === 'week'"
+      class="admin-condition-period-nav"
+      role="group"
+      aria-label="表示する週の選択（月曜〜日曜）"
+    >
+      <div class="admin-condition-period-nav__row">
+        <button
+          type="button"
+          class="admin-condition-period-nav__btn"
+          @click="adminShiftWeek(-1)"
+        >
+          前の週
+        </button>
+        <label class="admin-condition-period-nav__picker">
+          <span class="admin-condition-period-nav__picker-label">週を選択</span>
+          <input
+            v-model="adminCalendarWeekValue"
+            class="admin-condition-period-nav__input"
+            type="week"
+            :name="`${domIdPrefix || 'graph'}__admin-week`"
+            @change="onAdminWeekPickerChange"
+          >
+        </label>
+        <button
+          type="button"
+          class="admin-condition-period-nav__btn"
+          @click="adminShiftWeek(1)"
+        >
+          次の週
+        </button>
+      </div>
+      <p
+        v-if="adminWeekRangeCaption"
+        class="admin-condition-period-nav__caption"
+      >
+        {{ adminWeekRangeCaption }}（月〜日の1週間）
+      </p>
+    </div>
+
+    <div
+      v-if="chartsGrid && mode === 'month'"
+      class="admin-condition-period-nav"
+      role="group"
+      aria-label="表示する月の選択"
+    >
+      <div class="admin-condition-period-nav__row">
+        <button
+          type="button"
+          class="admin-condition-period-nav__btn"
+          @click="adminShiftMonth(-1)"
+        >
+          前の月
+        </button>
+        <label class="admin-condition-period-nav__picker">
+          <span class="admin-condition-period-nav__picker-label">月を選択</span>
+          <input
+            v-model="adminMonthYm"
+            class="admin-condition-period-nav__input"
+            type="month"
+            :name="`${domIdPrefix || 'graph'}__admin-month`"
+            @change="onAdminMonthPickerChange"
+          >
+        </label>
+        <button
+          type="button"
+          class="admin-condition-period-nav__btn"
+          @click="adminShiftMonth(1)"
+        >
+          次の月
+        </button>
+      </div>
+    </div>
+
     <div v-show="mode === 'custom'" class="custom-range">
       <div class="range-row">
         <label :for="`${domIdPrefix || 'graph'}__range-start`">開始日</label>
@@ -424,6 +751,123 @@ watch(
         chartsGrid ? 'admin-condition-chart-grid' : undefined,
       ]"
     >
+      <section
+        v-if="chartsGrid && conditionDataTableDays.length > 0"
+        class="chart-card admin-condition-data-table-section"
+        :aria-labelledby="conditionDataTableHeadingId"
+      >
+        <h2
+          :id="conditionDataTableHeadingId"
+          class="chart-heading admin-condition-data-table-section__title"
+        >
+          <span class="chart-heading__text">日別の数値</span>
+        </h2>
+        <div class="admin-condition-data-table-wrap">
+          <table
+            class="admin-condition-data-table"
+            :class="{
+              'admin-condition-data-table--scroll':
+                conditionDataTableNeedsHorizontalScroll,
+            }"
+          >
+            <colgroup>
+              <col class="admin-condition-data-table__col-metric" />
+              <col class="admin-condition-data-table__col-goal" />
+              <col
+                v-for="d in conditionDataTableDays"
+                :key="d.ymd"
+                class="admin-condition-data-table__col-day"
+              />
+            </colgroup>
+            <thead>
+              <tr>
+                <th scope="col" class="admin-condition-data-table__metric">
+                  項目
+                </th>
+                <th scope="col" class="admin-condition-data-table__goal-col">
+                  目標
+                </th>
+                <th
+                  v-for="d in conditionDataTableDays"
+                  :key="d.ymd"
+                  scope="col"
+                  class="admin-condition-data-table__day"
+                >
+                  {{ d.header }}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="row in conditionDataTableRows"
+                :key="row.field"
+              >
+                <th scope="row" class="admin-condition-data-table__metric">
+                  {{ row.title }}（{{ row.unit }}）
+                </th>
+                <td class="admin-condition-data-table__goal-col">
+                  {{ row.goalDisplay }}
+                </td>
+                <td
+                  v-for="(cell, idx) in row.cells"
+                  :key="`${row.field}-${conditionDataTableDays[idx]!.ymd}`"
+                  class="admin-condition-data-table__cell"
+                >
+                  {{ cell }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div
+          v-if="conditionMacroSummary.length > 0"
+          class="admin-macro-summary"
+          :aria-labelledby="conditionMacroSummaryHeadingId"
+        >
+          <h3
+            :id="conditionMacroSummaryHeadingId"
+            class="admin-macro-summary__title"
+          >
+            期間の合計（対目標）
+          </h3>
+          <p class="admin-macro-summary__note">
+            実績は入力日のみ合算。目標は「1日あたりの目標 × 表示日数」です。
+          </p>
+          <ul class="admin-macro-summary__list" role="list">
+            <li
+              v-for="row in conditionMacroSummary"
+              :key="row.field"
+              class="admin-macro-summary__item"
+            >
+              <span class="admin-macro-summary__label">{{ row.label }}</span>
+              <div class="admin-macro-summary__body">
+                <div class="admin-macro-summary__ratio">
+                  <span class="admin-macro-summary__actual">
+                    {{ formatMacroInt(row.actualTotal) }}{{ row.unit }}
+                  </span>
+                  <span class="admin-macro-summary__sep">/</span>
+                  <span
+                    class="admin-macro-summary__target"
+                    :class="{
+                      'admin-macro-summary__target--na': !row.targetValid,
+                    }"
+                  >
+                    <template v-if="row.targetValid">
+                      {{ formatMacroInt(row.targetTotal) }}{{ row.unit }}
+                    </template>
+                    <template v-else>—</template>
+                  </span>
+                </div>
+                <span :class="row.deltaClass" aria-label="目標との差">{{
+                  row.deltaText
+                }}</span>
+              </div>
+            </li>
+          </ul>
+        </div>
+      </section>
+
       <section
         class="chart-card"
         :aria-labelledby="moodHeadingId"

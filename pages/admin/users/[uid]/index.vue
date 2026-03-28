@@ -503,7 +503,7 @@ useHead(
         aria-labelledby="admin-tab-condition"
       >
         <p class="admin-user-detail__section-lead">
-          対象ユーザーの日次記録（1週間／1ヶ月／期間指定）。グラフはこのタブ表示中のみ読み込みます。
+          対象ユーザーの日次記録（1週間／1ヶ月／期間指定）。1週間は月曜〜日曜のカレンダー週、1ヶ月は暦の月です。前後・一覧から週や月を選べます。グラフはこのタブ表示中のみ読み込みます。
         </p>
         <div v-if="profileLoading" class="admin-user-detail__loading">
           プロフィールを読み込み中…

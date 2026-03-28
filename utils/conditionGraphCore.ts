@@ -120,11 +120,13 @@ export function buildSeries(
   end: Date,
   fieldKey: string,
   entries: Record<string, Record<string, unknown>>,
+  opts?: { formatDayLabel?: (d: Date) => string },
 ) {
+  const fmt = opts?.formatDayLabel ?? formatAxisLabel;
   const labels: string[] = [];
   const values: (number | null)[] = [];
   eachDayInclusive(start, end, (d) => {
-    labels.push(formatAxisLabel(d));
+    labels.push(fmt(d));
     const key = ymd(d);
     const raw = entries[key]?.[fieldKey];
     const n = raw === "" || raw === undefined ? null : Number(raw);
@@ -151,6 +153,69 @@ export function rangeForPreset(preset: "week" | "month") {
   } else {
     start.setDate(start.getDate() - 29);
   }
+  return { start, end };
+}
+
+/** 暦日のみの差分（時刻・DSTの影響を避ける） */
+function calendarDaysBetweenUtc(a: Date, b: Date): number {
+  const t1 = Date.UTC(a.getFullYear(), a.getMonth(), a.getDate());
+  const t2 = Date.UTC(b.getFullYear(), b.getMonth(), b.getDate());
+  return Math.round((t2 - t1) / 86400000);
+}
+
+/** その日を含む週の月曜日（ローカル暦・正午基準） */
+export function mondayOfWeekContaining(date: Date): Date {
+  const d = new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate(),
+    12,
+    0,
+    0,
+    0,
+  );
+  const dow = d.getDay();
+  const diff = (dow + 6) % 7;
+  d.setDate(d.getDate() - diff);
+  return d;
+}
+
+/** `<input type="week">` 用 `yyyy-Www`（ISO 週・月曜始まり） */
+export function dateToIsoWeekValue(d: Date): string {
+  const mon = mondayOfWeekContaining(d);
+  const thu = new Date(mon);
+  thu.setDate(mon.getDate() + 3);
+  let isoYear = thu.getFullYear();
+  let jan4 = new Date(isoYear, 0, 4, 12, 0, 0, 0);
+  let week1Mon = mondayOfWeekContaining(jan4);
+  if (mon < week1Mon) {
+    isoYear -= 1;
+    jan4 = new Date(isoYear, 0, 4, 12, 0, 0, 0);
+    week1Mon = mondayOfWeekContaining(jan4);
+  }
+  const diffDays = calendarDaysBetweenUtc(week1Mon, mon);
+  const weekNum = Math.floor(diffDays / 7) + 1;
+  return `${isoYear}-W${String(weekNum).padStart(2, "0")}`;
+}
+
+/** `yyyy-Www` → その週の月曜（不正なら null） */
+export function isoWeekValueToMonday(value: string): Date | null {
+  const m = /^(\d{4})-W(\d{1,2})$/i.exec(value.trim());
+  if (!m) return null;
+  const isoYear = Number(m[1]);
+  const week = Number(m[2]);
+  if (!isoYear || week < 1 || week > 53) return null;
+  const jan4 = new Date(isoYear, 0, 4, 12, 0, 0, 0);
+  const week1Mon = mondayOfWeekContaining(jan4);
+  const start = new Date(week1Mon);
+  start.setDate(week1Mon.getDate() + (week - 1) * 7);
+  return start;
+}
+
+/** カレンダー月の初日・末日（ローカル・正午） */
+export function calendarMonthBounds(year: number, month1to12: number) {
+  const start = new Date(year, month1to12 - 1, 1, 12, 0, 0, 0);
+  const end = new Date(year, month1to12, 0, 12, 0, 0, 0);
   return { start, end };
 }
 

@@ -884,6 +884,318 @@ html.admin-ui body {
   min-height: 165px;
 }
 
+/* コンディション：グラフグリッド直下の日別テーブル（全幅） */
+.admin-condition-chart-grid > .admin-condition-data-table-section {
+  grid-column: 1 / -1;
+  margin-top: 0;
+  margin-bottom: 14px;
+}
+
+.admin-condition-data-table-section__title {
+  margin-bottom: 8px;
+}
+
+/*
+ * 週など列が少ないとき: width 100% のみ（min-width:max-content を付けない — Safari で表が空に見える不具合回避）
+ * 1ヶ月など: --scroll で width:max-content し、はみ出しは横スクロール
+ */
+.admin-condition-data-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  display: block;
+}
+
+.admin-condition-data-table {
+  width: 100%;
+  margin: 0;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  /* 項目列以外が余白を均等に分配（週表示など） */
+  table-layout: fixed;
+}
+
+.admin-condition-data-table--scroll {
+  width: max-content;
+  min-width: 100%;
+  /* 列が多いときは最小幅を尊重しつつ横スクロール */
+  table-layout: auto;
+}
+
+/* 項目名は 120px 固定（それ以外の列が余白を埋める） */
+.admin-condition-data-table__col-metric {
+  width: 120px;
+  min-width: 120px;
+  max-width: 120px;
+}
+
+.admin-condition-data-table__col-goal {
+  min-width: 3.5rem;
+  width: auto;
+}
+
+.admin-condition-data-table__col-day {
+  min-width: 3rem;
+  width: auto;
+}
+
+/* 1ヶ月表示: 目標・日付が同じ比率で伸び、テーブルが枠より広いとき用 */
+.admin-condition-data-table--scroll .admin-condition-data-table__col-goal,
+.admin-condition-data-table--scroll .admin-condition-data-table__col-day {
+  width: 1%;
+}
+
+.admin-detail-card .admin-condition-data-table-section.chart-card {
+  padding-left: 6px;
+  padding-right: 8px;
+}
+
+.admin-condition-data-table th,
+.admin-condition-data-table td {
+  padding: 7px 9px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+/* th 単体セレクタより詳細度を上げず、項目列以外だけ右寄せ（.admin-condition-data-table th が .__metric より強く効いていた） */
+.admin-condition-data-table th:not(.admin-condition-data-table__metric),
+.admin-condition-data-table td:not(.admin-condition-data-table__metric) {
+  text-align: right;
+}
+
+.admin-condition-data-table thead th {
+  background: var(--bg);
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.admin-condition-data-table tbody tr:last-child th,
+.admin-condition-data-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.admin-condition-data-table__metric {
+  text-align: left;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--bg);
+  padding-left: 8px;
+  padding-right: 8px;
+  width: 120px;
+  min-width: 120px;
+  max-width: 120px;
+  box-sizing: border-box;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-condition-data-table thead .admin-condition-data-table__metric {
+  vertical-align: bottom;
+}
+
+/* sticky は横スクロールが必要なときだけ（親 overflow と組み合わせた描画ずれを減らす） */
+.admin-condition-data-table--scroll thead .admin-condition-data-table__metric {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  box-shadow: 1px 0 0 var(--border);
+}
+
+.admin-condition-data-table--scroll tbody th.admin-condition-data-table__metric {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  box-shadow: 1px 0 0 var(--border);
+}
+
+.admin-condition-data-table__goal-col {
+  min-width: 3.5rem;
+  font-weight: 700;
+  color: #b91c1c;
+  background: rgba(220, 38, 38, 0.07);
+  white-space: nowrap;
+}
+
+.admin-condition-data-table__day {
+  min-width: 3rem;
+  white-space: nowrap;
+}
+
+.admin-condition-data-table__cell {
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+/* コンディション日別テーブル直下：マクロ合計サマリ（管理画面） */
+.admin-macro-summary {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.admin-macro-summary__title {
+  margin: 0 0 4px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+}
+
+.admin-macro-summary__note {
+  margin: 0 0 8px;
+  font-size: 0.625rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.admin-macro-summary__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+}
+
+.admin-macro-summary__item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  flex: 1 1 0;
+  min-width: 6.5rem;
+  max-width: 100%;
+}
+
+.admin-macro-summary__label {
+  font-size: 0.625rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.admin-macro-summary__body {
+  font-size: 0.6875rem;
+  line-height: 1.4;
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.admin-macro-summary__ratio {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: baseline;
+  gap: 3px;
+  white-space: nowrap;
+}
+
+.admin-macro-summary__sep {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.admin-macro-summary__target--na {
+  color: var(--text-muted);
+}
+
+.admin-macro-summary__delta {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.admin-macro-summary__delta--pos {
+  color: #059669;
+}
+
+.admin-macro-summary__delta--neg {
+  color: #dc2626;
+}
+
+.admin-macro-summary__delta--zero {
+  color: var(--text-muted);
+}
+
+/* 管理画面コンディション：カレンダー週（月〜日）・月の選択 */
+.admin-condition-period-nav {
+  margin: 12px 0 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.admin-condition-period-nav__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px 12px;
+}
+
+.admin-condition-period-nav__btn {
+  min-height: 36px;
+  padding: 6px 12px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.admin-condition-period-nav__btn:hover {
+  border-color: var(--text-muted);
+}
+
+.admin-condition-period-nav__picker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.admin-condition-period-nav__picker-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.admin-condition-period-nav__input {
+  min-height: 40px;
+  padding: 8px 12px;
+  font-size: 0.875rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: inherit;
+}
+
+.admin-condition-period-nav__caption {
+  margin: 8px 0 0;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
 .admin-training-month-bar {
   display: flex;
   flex-wrap: wrap;
